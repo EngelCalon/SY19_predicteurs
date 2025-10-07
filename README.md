@@ -75,9 +75,9 @@ cd SY19_predicteurs
 
 - Engel CALON (*@EngelCalon*)
 
-- Bastien CUVILLIER (*@*)
+- Bastien CUVILLIER (*@Voln1x*)
   
-- Camille MILON (*@*)
+- Camille MILON (*@C-mln*)
 
 ---
 
