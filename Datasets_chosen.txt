@@ -1,0 +1,10 @@
+https://www.kaggle.com/datasets/thedevastator/wild-brown-rat-predator-response
+https://www.kaggle.com/datasets/franciscogcc/financial-data
+https://www.kaggle.com/datasets/varunraskar/cancer-regression
+https://www.kaggle.com/datasets/mosapabdelghany/adult-income-prediction-dataset
+https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who
+https://www.openml.org/search?type=data&status=active&qualities.NumberOfInstances=between_1000_10000&qualities.NumberOfFeatures=between_10_100&id=45949
+https://www.kaggle.com/datasets/lainguyn123/student-performance-factors
+https://www.kaggle.com/datasets/shivam2503/diamonds
+https://www.kaggle.com/datasets/yasserh/breast-cancer-dataset
+https://www.kaggle.com/datasets/yasserh/wine-quality-dataset
