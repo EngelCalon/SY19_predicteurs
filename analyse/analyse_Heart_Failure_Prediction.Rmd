@@ -1,0 +1,594 @@
+---
+title: "Analyse exploratoire du jeu de données Heart Failure Prediction"
+author: Engel CALON, Bastien CUVILLIER, Camille MILON
+output: html_notebook
+---
+
+```{css, echo=FALSE}
+/* --- Style global --- */
+body {
+  font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #1f1f1f;
+  background-color: #f7f8fa;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+
+/* --- Conteneur principal --- */
+.main-container {
+  max-width: 900px;
+  margin: 40px auto;
+  background-color: white;
+  box-shadow: 0 0 15px rgba(0,0,0,0.1);
+  border-radius: 10px;
+  padding: 40px 60px;
+}
+
+/* --- Titre principal --- */
+h1.title {
+  font-style: italic;
+  text-align: center;
+  background-color: #022F54; /*#022745;*/
+  color: white;
+  font-size: 2.2em;
+  padding: 25px 15px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  margin-bottom: 10px;
+  margin-top: 0;
+  font-family: 'Oxygen', sans-serif;
+}
+
+/* --- Auteur centré --- */
+.author {
+  text-align: center;
+  font-style: italic;
+  color: #333;
+  margin-top: 5px;
+  margin-bottom: 40px;
+  background-color: white;
+}
+
+/* --- Titres de sections --- */
+h3, h4, h5 {
+  color: #0d1b2a;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  margin-top: 40px;
+}
+
+h3 {
+  background-color: #b3cde0; /* bleu pastel */
+}
+
+h4 {
+  background-color: #d6e9f7; /* bleu clair */
+}
+
+h5 {
+  background-color: #e9f3fb;
+}
+
+/* --- Code et sorties --- */
+pre, code {
+  background-color: #1b263b;
+  color: #f1f1f1;
+  font-family: "Fira Code", monospace;
+  border-radius: 6px;
+}
+
+pre {
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.r {
+  background-color: #0d1b2a;
+  color: #f8f9fa;
+}
+
+/* --- Texte --- */
+p {
+  color: #2b2b2b;
+  margin: 10px 0 20px;
+}
+
+/* --- Liens --- */
+a {
+  color: #0077b6;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* --- Citations --- */
+blockquote {
+  border-left: 5px solid #a9cce3;
+  background-color: #f1f8fb;
+  padding: 10px 20px;
+  color: #333;
+  font-style: italic;
+  border-radius: 5px;
+}
+```
+
+---
+### Heart Failure Prediction
+
+##### Description
+The "heart_failure_clinical_records.csv" dataset comprises clinical records of patients with heart failure, detailing various medical attributes that may contribute to heart failure incidents. This dataset is instrumental for researchers and healthcare professionals aiming to analyze factors leading to heart failure and mortality. The collected data spans individuals of varied ages, with measurements such as anaemia presence, creatinine phosphokinase levels, diabetes status, ejection fraction, high blood pressure, platelets count, serum creatinine, serum sodium levels, sex, smoking status, follow-up period (time), and the event of death.  
+
+
+##### Attribute Description
+* age: Age of the patient (years)
+* anaemia: Decrease of red blood cells or hemoglobin (0: No, 1: Yes)
+* creatinine_phosphokinase: Level of the CPK enzyme in the blood (mcg/L)
+* diabetes: If the patient has diabetes (0: No, 1: Yes)
+* ejection_fraction: Percentage of blood leaving the heart at each contraction (%)
+* high_blood_pressure: If the patient has hypertension (0: No, 1: Yes)
+* platelets: Platelets in the blood (kiloplatelets/mL)
+* serum_creatinine: Level of serum creatinine in the blood (mg/dL)
+* serum_sodium: Level of serum sodium in the blood (mEq/L)
+* sex: Biological sex of the patient (0: Female, 1: Male)
+* smoking: If the patient smokes (0: No, 1: Yes)
+* time: Follow-up period (days)
+* DEATH_EVENT: If the patient deceased during the follow-up period (0: No, 1: Yes)
+
+##### Use Case
+This dataset can serve a vital role in machine learning projects and statistical analyses aiming to predict heart failure mortality and understand the impact of various predictors on heart failure outcomes. Researchers can use this data to develop predictive models, identify key risk factors, and propose targeted interventions for at-risk populations. Public health officials and policy makers can also leverage the insights gained to guide healthcare resource allocation and preventive strategies.
+
+
+#### Chargement des données
+```{r}
+if(!require(here)) install.packages("here")
+library(here)
+
+# Chemin vers les données
+data_path <- here("src", "data", "dataset_Heart_Failure_Prediction.txt")
+
+# Lecture des données
+clas_data <- read.table(
+  data_path,
+  header = FALSE,
+  sep = ",",
+  quote = "\"",
+  stringsAsFactors = FALSE
+)
+
+# Aperçu
+head(clas_data)
+```
+
+```{r}
+# Renommer les colonnes
+colnames(clas_data) <- c(
+  "age",
+  "anaemia",
+  "creatinine_phosphokinase",
+  "diabetes",
+  "ejection_fraction",
+  "high_blood_pressure",
+  "platelets",
+  "serum_creatinine",
+  "serum_sodium",
+  "sex",
+  "smoking",
+  "time",
+  "DEATH_EVENT"
+)
+
+library(dplyr)
+clas_data <- clas_data %>%
+  mutate(
+    age = as.integer(age),
+
+    # variables logiques
+    anaemia = as.logical(anaemia),
+    diabetes = as.logical(diabetes),
+    high_blood_pressure = as.logical(high_blood_pressure),
+    sex = as.factor(sex),
+    smoking = as.logical(smoking),
+
+    # variable cible
+    DEATH_EVENT = as.factor(DEATH_EVENT)
+  )
+
+head(clas_data)
+```
+```{r}
+cat("Dimensions du dataset :", dim(clas_data), "\n\n")
+cat("Structure du dataset :\n")
+str(clas_data)
+```
+
+
+#### Résumé statistique
+
+```{r}
+summary(clas_data)
+```
+
+##### Variables numériques
+
+**age**  
+
+* Min = 40
+* Médiane = 60 
+* Moyenne = 60.3   
+
+Population plutôt âgée, cohérente avec l’insuffisance cardiaque.  
+
+
+**creatinine_phosphokinase (CPK)**  
+
+* Min = 23
+* Max = 7861 !!!
+* Médiane = 248
+* Moyenne = 586
+
+Très forte asymétrie positive  
+Présence d'extrêmes massifs  
+Médiane << moyenne => valeurs extraordinaires  
+
+*Normalisation nécessaire* (surtout pour les modèles linéaires) et potentiellement *transformation log*   
+
+
+**ejection_fraction**  
+
+* Min : 14
+* Max : 80
+* Médiane : 38
+* Moyenne : 37.7
+
+*Variable particulièrement intéressante* dans le cadre de la prédiction => Ejection fraction < 40 = cœur faible  
+On observe peu de valeurs très élevées (≥ 70) et on s'attend à avoir un pic entre 30 et 40.
+
+
+**platelets (plaquettes)**  
+
+Valeurs très élevées et amplitude énorme  
+
+Probable forte asymétrie (à vérifier avec l'étude de la distribution)  
+
+Transformation log à envisager
+
+
+**serum_creatinine**  
+
+* Min : 0.5
+* Max : 9.4
+* Médiane : 1.1
+* Moyenne : 1.37
+
+Distribution fortement asymétrique avec quelques patients en insuffisance rénale sévère (créatinine > 4). Cette variable est un fort prédicteur du décès selon les études cliniques.
+
+
+**serum_sodium**  
+
+* Min : 113
+* Max : 148
+* Médiane : 137
+
+Variable étroite, distribution probablement quasi normale (à vérifier)  
+Les faibles valeurs (< 132) sont cliniquement significatives (hyponatrémie => risque accru de décès).
+
+
+**time (follow-up days)**  
+
+* Min : 4
+* Max : 285
+* Médiane : 113
+* Moyenne : 130
+
+Distribution asymétrique positive  
+Variable importante mais post-mortem (ne doit généralement pas être utilisée en prédiction prospective) => à supprimer
+
+##### Variables catégorielles
+
+**anemia**  
+Représentation équilibrée  
+
+
+**diabetes**  
+Équilibrée  
+
+
+**high_blood_pressure**  
+36% oui => déséquilibré  
+
+
+**sex**  
+65% hommes => déséquilibré  
+
+
+**smoking**  
+31% oui => déséquilibré  
+
+
+**DEATH_EVENT**  
+31% décès
+Déséquilibre de la variable cible à prendre en compte pour la classification !!
+
+```{r}
+# Nombre de valeurs manquantes
+colSums(is.na(clas_data))
+```
+Aucune valeur manquante n’a été détectée.
+
+#### Distributions
+
+```{r}
+library(tidyverse)
+# Histogrammes 
+num_vars <- names(clas_data)[sapply(clas_data, is.numeric)]
+
+for (var in num_vars) {
+  print(
+    ggplot(clas_data, aes_string(x = var)) +
+      geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+      labs(title = paste("Distribution de", var), x = var, y = "Fréquence") +
+      theme_minimal()
+  )
+}
+
+# Densités par classe 
+for (var in num_vars) {
+  print(
+    ggplot(clas_data, aes_string(x = var, fill = "DEATH_EVENT")) +
+      geom_density(alpha = 0.5) +
+      labs(title = paste("Densité de", var, "par classe de DEATH_EVENT")) +
+      theme_minimal()
+  )
+}
+```
+##### Distributions
+
+* **age** s'apparente à une gaussienne mais n'est pas gaussienne  
+
+* **creatinine_phosphokinase** => exponentielle décroissante, présence des valeurs extraordinaires  
+
+* **ejection_fraction** s'apparente à une gaussienne mais n'est pas gaussienne, asymétrie (plus de valeurs inférieures ou égales à 40 que supérieures)  
+
+* **platelets** ressemble à une gaussienne avec des valeurs aberrantes à droite => les valeurs extrêmes doivent être examinées mais semblent plausibles biologiquement  
+
+* **serum_creatinine** semble suivre une loi de Fisher  
+
+* **serum_sodium** n'est pas une loi de Fisher mais s'apparente à une loi de Fisher inversée  
+
+* **time** suit une distribution aléatoire  
+
+##### Densités par classe
+
+* **age** : Le diagramme de densité nous permet d'observer une légère discrimination: les personnes atteintes de problèmes cardiaques âgées de 70 ans ou plus ont tendance à mourir  
+
+* **ejection_fraction** : Légère discrimination possible : ejection_fraction élevée => survie; ejection_fraction faible => mort  
+
+* **time** : Variable discriminante mais seulement utilisable post-mortem donc pas grand intérêt => comme expliqué précédemment, cette variable est à supprimer du jeu de données
+
+#### Analyse bivariée
+```{r}
+library(ggplot2)
+
+num_vars <- clas_data %>% select(age, creatinine_phosphokinase, ejection_fraction,
+                          platelets, serum_creatinine, serum_sodium, time)
+
+plots_num_target <- lapply(names(num_vars), function(v) {
+  ggplot(clas_data, aes_string(x = "as.factor(DEATH_EVENT)", y = v, fill = "as.factor(DEATH_EVENT)")) +
+    geom_boxplot() +
+    theme_minimal() +
+    labs(title = paste("Relation entre", v, "et DEATH_EVENT"),
+         x = "Death Event", fill = "Death Event")
+})
+grid.arrange(grobs = plots_num_target, ncol = 2)
+```
+Les boxplots confirment les observations des graphiques de densité par classe.  
+
+```{r}
+cat_vars <- clas_data %>% select(anaemia, diabetes, high_blood_pressure, sex,
+                          smoking, DEATH_EVENT)
+
+plots_cat_target <- lapply(names(cat_vars)[-length(names(cat_vars))], function(v) {
+  ggplot(clas_data, aes_string(x = v, fill = "as.factor(DEATH_EVENT)")) +
+    geom_bar(position = "fill") +
+    scale_y_continuous(labels = scales::percent) +
+    theme_minimal() +
+    labs(title = paste("Proportion de DEATH_EVENT selon", v),
+         y = "Proportion", fill = "Death Event")
+})
+grid.arrange(grobs = plots_cat_target, ncol = 2)
+```
+Aucune variable catégorielle ne semble déterminante à elle seule pour la prédiction de DEATH_EVENT.  
+
+
+Conclusion => les variables les plus discriminantes semblent être :  
+- ejection_fraction  
+- serum_creatinine  
+- age  
+- serum_sodium (modérément)  
+
+#### Corrélation
+```{r}
+library(corrplot)
+cor_mat <- cor(num_vars)
+corrplot(cor_mat, method = "color",
+         type = "upper", addCoef.col = "black",
+         tl.col = "black", tl.srt = 45,
+         title = "Corrélation des variables numériques",
+         mar = c(0, 0, 1, 0))
+```
+On observe aucune forte corrélation entre les différentes variables numériques => Pas besoin de sélection de variables basée sur colinéarité
+
+#### Répartition des classes
+```{r}
+ggplot(clas_data, aes(x = DEATH_EVENT, fill = DEATH_EVENT)) +
+  geom_bar() +
+  labs(title = "Répartition des classes de y") +
+  theme_minimal()
+```
+Cela confirme l'hypothèse selon laquelle la **classe 1 (mort) est sous-représentée** => A gérer pour l'apprentissage
+
+
+#### Test de plusieurs classifieurs
+```{r}
+library(dplyr)
+library(ggplot2)
+library(randomForest)
+library(xgboost)
+library(pROC)     
+set.seed(123)
+
+
+##### Préparation des données #####
+
+data <- clas_data %>%
+  select(-time) %>%            # Supprimer variable post-mortem !
+  mutate(
+    DEATH_EVENT = factor(DEATH_EVENT, levels = c(0,1)),
+    anaemia = factor(anaemia),
+    diabetes = factor(diabetes),
+    high_blood_pressure = factor(high_blood_pressure),
+    sex = factor(sex),
+    smoking = factor(smoking)
+  )
+
+data_xgb <- clas_data %>%
+  select(-time) %>% 
+  mutate(
+    age = as.integer(age),
+
+    # variables logiques  => à vérifier selon les modèles s'il est plus intéressant de les avoir as logical ou as factor
+    anaemia = as.logical(anaemia),
+    diabetes = as.logical(diabetes),
+    high_blood_pressure = as.logical(high_blood_pressure),
+    sex = as.logical(sex),
+    smoking = as.logical(smoking),
+
+    # variable cible
+    DEATH_EVENT = factor(DEATH_EVENT, levels = c(0,1))
+  )
+
+# Transformation log des variables très asymétriques
+data <- data %>%
+  mutate(
+    creatinine_phosphokinase_log = log1p(creatinine_phosphokinase),
+    platelets_log = log1p(platelets),
+    serum_creatinine_log = log1p(serum_creatinine)
+  ) %>%
+  select(-creatinine_phosphokinase, -platelets, -serum_creatinine)
+
+data_xgb <- data_xgb %>%
+  mutate(
+    creatinine_phosphokinase_log = log1p(creatinine_phosphokinase),
+    platelets_log = log1p(platelets),
+    serum_creatinine_log = log1p(serum_creatinine)
+  ) %>%
+  select(-creatinine_phosphokinase, -platelets, -serum_creatinine)
+
+# Séparer X et y
+X <- data %>% select(-DEATH_EVENT)
+y <- data$DEATH_EVENT
+X_xgb <- data_xgb %>% select(-DEATH_EVENT)
+y_xgb <- data$DEATH_EVENT
+
+
+##### Validation croisée 5-fold #####
+
+k <- 5
+n <- nrow(data)
+folds <- split(sample(1:n), rep(1:k, length.out = n))
+
+# Fonction pour calculer Accuracy et AUC
+eval_metrics <- function(y_true, y_pred_prob, threshold = 0.5) {
+  y_pred <- factor(ifelse(y_pred_prob >= threshold, 1, 0), levels = c(0,1))
+  acc <- mean(y_true == y_pred)
+  auc <- pROC::roc(as.numeric(as.character(y_true)), y_pred_prob)$auc
+  return(list(Accuracy = acc, AUC = auc))
+}
+
+results <- list(Logistic = list(), RF = list(), XGB = list())
+
+for (i in 1:k) {
+  test_idx <- folds[[i]]
+  train_idx <- setdiff(1:n, test_idx)
+  
+  X_train <- X[train_idx, ]
+  y_train <- y[train_idx]
+  X_test <- X[test_idx, ]
+  y_test <- y[test_idx]
+  X_train_xgb <- X_xgb[train_idx, ]
+  y_train_xgb <- y_xgb[train_idx]
+  X_test_xgb <- X_xgb[test_idx, ]
+  y_test_xgb <- y_xgb[test_idx]
+  
+  
+  # Régression logistique
+  df_train <- data.frame(y = y_train, X_train)
+  log_mod <- glm(y ~ ., data = df_train, family = binomial)
+  pred_log <- predict(log_mod, newdata = X_test, type = "response")
+  results$Logistic[[i]] <- eval_metrics(y_test, pred_log)
+  
+  
+  # Random Forest
+  rf_mod <- randomForest(x = X_train, y = y_train, ntree = 500) # Tester le nb d'arbres optimal !! => Vérifier le TD
+  pred_rf <- predict(rf_mod, newdata = X_test, type = "prob")[,2]
+  results$RF[[i]] <- eval_metrics(y_test, pred_rf)
+  
+
+  # XGBoost
+  #Fonction pour transformer facteurs ou logical en numériques 0 et 1
+  encode_numeric <- function(df) {
+    df[] <- lapply(df, function(col) {
+      if (is.logical(col)) {
+        as.numeric(col)         
+      } else if (is.factor(col)) {
+        as.numeric(as.character(col))  
+      } else {
+        as.numeric(col)         
+      }
+    })
+    return(as.matrix(df))
+  }
+
+  X_train_xgb <- encode_numeric(X_train_xgb)
+  X_test_xgb <- encode_numeric(X_test_xgb)
+
+  dtrain <- xgb.DMatrix(data = X_train_xgb, label = as.numeric(as.character(y_train)))
+  dtest  <- xgb.DMatrix(data = X_test_xgb, label = as.numeric(as.character(y_test)))
+
+  xgb_mod <- xgboost(
+    data = dtrain,
+    objective = "binary:logistic",
+    nrounds = 100,
+    max_depth = 3,
+    eta = 0.1,
+    verbose = 0
+  )
+  pred_xgb <- predict(xgb_mod, dtest)
+  results$XGB[[i]] <- eval_metrics(y_test, pred_xgb)
+}
+
+
+##### Résultats #####
+
+summarize_results <- function(res_list) {
+  acc <- sapply(res_list, function(x) x$Accuracy)
+  auc <- sapply(res_list, function(x) x$AUC)
+  data.frame(
+    Accuracy_Mean = mean(acc),
+    Accuracy_SD = sd(acc),
+    AUC_Mean = mean(auc),
+    AUC_SD = sd(auc)
+  )
+}
+
+res_df <- rbind(
+  Logistic = summarize_results(results$Logistic),
+  RF = summarize_results(results$RF),
+  XGB = summarize_results(results$XGB)
+)
+
+print(res_df)
+```

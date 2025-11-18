@@ -1,0 +1,268 @@
+---
+title: "Analyse exploratoire du jeu de données TP5_a25_clas_app"
+author: Engel CALON, Bastien CUVILLIER, Camille MILON
+output: html_notebook
+---
+
+```{css, echo=FALSE}
+/* --- Style global --- */
+body {
+  font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #1f1f1f;
+  background-color: #f7f8fa;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+
+/* --- Conteneur principal --- */
+.main-container {
+  max-width: 900px;
+  margin: 40px auto;
+  background-color: white;
+  box-shadow: 0 0 15px rgba(0,0,0,0.1);
+  border-radius: 10px;
+  padding: 40px 60px;
+}
+
+/* --- Titre principal --- */
+h1.title {
+  font-style: italic;
+  text-align: center;
+  background-color: #022F54; /*#022745;*/
+  color: white;
+  font-size: 2.2em;
+  padding: 25px 15px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  margin-bottom: 10px;
+  margin-top: 0;
+  font-family: 'Oxygen', sans-serif;
+}
+
+/* --- Auteur centré --- */
+.author {
+  text-align: center;
+  font-style: italic;
+  color: #333;
+  margin-top: 5px;
+  margin-bottom: 40px;
+  background-color: white;
+}
+
+/* --- Titres de sections --- */
+h3, h4, h5 {
+  color: #0d1b2a;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  margin-top: 40px;
+}
+
+h3 {
+  background-color: #b3cde0; /* bleu pastel */
+}
+
+h4 {
+  background-color: #d6e9f7; /* bleu clair */
+}
+
+h5 {
+  background-color: #e9f3fb;
+}
+
+/* --- Code et sorties --- */
+pre, code {
+  background-color: #1b263b;
+  color: #f1f1f1;
+  font-family: "Fira Code", monospace;
+  border-radius: 6px;
+}
+
+pre {
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.r {
+  background-color: #0d1b2a;
+  color: #f8f9fa;
+}
+
+/* --- Texte --- */
+p {
+  color: #2b2b2b;
+  margin: 10px 0 20px;
+}
+
+/* --- Liens --- */
+a {
+  color: #0077b6;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* --- Citations --- */
+blockquote {
+  border-left: 5px solid #a9cce3;
+  background-color: #f1f8fb;
+  padding: 10px 20px;
+  color: #333;
+  font-style: italic;
+  border-radius: 5px;
+}
+```
+
+---
+### TP5_a25_clas_app
+
+Jeu de données dédié à la classification
+
+#### Chargement des données
+```{r}
+if(!require(here)) install.packages("here")
+library(here)
+
+# Chemin vers les données
+data_path <- here("src", "data", "TP5_a25_clas_app.txt")
+
+# Lecture des données
+clas_data <- read.table(
+  data_path,
+  header = TRUE,
+  sep = " ",
+  quote = "\"",
+  stringsAsFactors = FALSE
+)
+
+# y as factor ?
+
+# Aperçu
+head(clas_data)
+```
+Le jeu de données contient 50 variables explicatives (X1 à X50) et 1 variable cible (y).  
+Types des variables :  
+- de X1 à X45 : double  
+- de X46 à X50 : entiers
+
+#### Résumé statistique
+
+```{r}
+summary(clas_data)
+```
+
+```{r}
+if(!require(psych)) install.packages("psych")
+library(psych)
+describe(clas_data)
+```
+##### Variables X1 à X20
+
+Les valeurs se situent principalement **entre 0 et 10**, avec une **moyenne autour de 5**.
+
+La répartition semble **symétrique** et bien **centrée**, sans valeurs extrêmes marquées.
+
+Données probablement simulées sur une même échelle ...
+
+##### Variables X21 à X45
+
+Ces variables présentent une plage de valeurs beaucoup plus large, **parfois négatives** (ex: X21 min = -14.5, max = 19.95).
+
+La **variabilité est importante** (données hétérogènes) : les écarts entre les 1er et 3e quartiles sont élevés
+
+On observe plusieurs variables avec des **valeurs extrêmes** (en gros, celles dont les min et max dépassent largement les autres (ex: X22, X35, X32))
+
+Ces variables nécessiteront probablement une standardisation ou une normalisation avant apprentissage.
+
+##### Variables X46 à X50
+
+Les variables X46 à X50 sont **entières** (valeurs discrètes entre 0 et 13) => variables catégorielles ordinales ou scores.
+
+Leur distribution est relativement centrée autour de 3 à 5.
+
+##### Variable cible y
+
+y prend les valeurs 1, 2 et 3 => **3 classes**
+
+Moyenne = 2.20, Médiane = 2, premier quartile = 2 => la **classe 2 semble majoritaire** (et la classe 1 la moins représentée ?)
+
+```{r}
+# Nombre de valeurs manquantes
+colSums(is.na(clas_data))
+```
+Aucune valeur manquante n’a été détectée.
+
+#### Distributions
+
+```{r}
+library(tidyverse)
+# Histogrammes 
+num_vars <- names(clas_data)[sapply(clas_data, is.numeric)]
+
+for (var in head(num_vars, 50)) {
+  print(
+    ggplot(clas_data, aes_string(x = var)) +
+      geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+      labs(title = paste("Distribution de", var), x = var, y = "Fréquence") +
+      theme_minimal()
+  )
+}
+
+# Densités par classe (y)
+for (var in head(num_vars, 50)) {
+  print(
+    ggplot(clas_data, aes_string(x = var, fill = "y")) +
+      geom_density(alpha = 0.5) +
+      labs(title = paste("Densité de", var, "par classe de y")) +
+      theme_minimal()
+  )
+}
+```
+##### Distributions
+Les **variables X1 à X20** semblent suivre des **distributions aléatoires** : distributions relativement uniformes, sans concentration vraiment marquée autour d'une valeur, aucune asymétrie, etc => contribuent probablement peu à la séparation des classes (à vérifier)  
+
+Les **variables X21 à X50** semblent suivre des distributions **gaussiennes**. => se prêtent bien à des méthodes linéaires (reg. log., LDA, etc) => plus de potentiel discriminant  
+Par ailleurs, les graphiques illustrent bien la présence de valeurs aberrantes (ex : X41) => standardisation (centrage/reduction) nécessaire
+
+##### Densités par classe
+
+De manière générale, les courbes de densité des classes se chevauchent fortement pour la majorité des variables. Cela signifie qu’aucune variable ne permet à elle seule de séparer nettement les classes => meilleurs résultats obtenus avec les variables X9, X12, X45, X46, X47, X48 et X49, bien que peu concluant
+
+
+#### Corrélation
+```{r}
+library(corrplot)
+# Calcul de la matrice de corrélation
+corr_matrix <- cor(clas_data[, num_vars])
+
+# Visualisation
+corrplot(corr_matrix, method = "color", type = "lower", tl.cex = 0.6, number.cex = 0.5)
+```
+On observe aucune forte corrélation entre les différentes variables.
+
+#### Répartition des classes
+```{r}
+ggplot(clas_data, aes(x = y, fill = y)) +
+  geom_bar() +
+  labs(title = "Répartition des classes de y") +
+  theme_minimal()
+```
+Cela confirme l'hypothèse selon laquelle la **classe 1 est sous-représentée** => pour les splits, il faudra donc faire attention de bien conserver la proportion de chaque classe !!!
+
+
+#### Valeurs aberrantes
+```{r}
+for (var in head(num_vars, 50)) {
+  print(
+    ggplot(clas_data, aes_string(x = "y", y = var, fill = "y")) +
+      geom_boxplot() +
+      labs(title = paste("Boxplot de", var, "par classe de y")) +
+      theme_minimal()
+  )
+}
+```
+Cela confirme que les variables X21 à X50 contiennent de nombreuses valeurs aberrantes => normalisation
+
+#### ACP

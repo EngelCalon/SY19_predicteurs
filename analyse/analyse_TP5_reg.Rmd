@@ -1,0 +1,453 @@
+---
+title: "Analyse exploratoire du jeu de données TP5_a25_reg_app"
+author: Engel CALON, Bastien CUVILLIER, Camille MILON
+output: html_notebook
+---
+
+```{css, echo=FALSE}
+/* --- Style global --- */
+body {
+  font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: #1f1f1f;
+  background-color: #f7f8fa;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+
+/* --- Conteneur principal --- */
+.main-container {
+  max-width: 900px;
+  margin: 40px auto;
+  background-color: white;
+  box-shadow: 0 0 15px rgba(0,0,0,0.1);
+  border-radius: 10px;
+  padding: 40px 60px;
+}
+
+/* --- Titre principal --- */
+h1.title {
+  font-style: italic;
+  text-align: center;
+  background-color: #022F54; /*#022745;*/
+  color: white;
+  font-size: 2.2em;
+  padding: 25px 15px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  margin-bottom: 10px;
+  margin-top: 0;
+  font-family: 'Oxygen', sans-serif;
+}
+
+/* --- Auteur centré --- */
+.author {
+  text-align: center;
+  font-style: italic;
+  color: #333;
+  margin-top: 5px;
+  margin-bottom: 40px;
+  background-color: white;
+}
+
+/* --- Titres de sections --- */
+h3, h4, h5 {
+  color: #0d1b2a;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  margin-top: 40px;
+}
+
+h3 {
+  background-color: #b3cde0; /* bleu pastel */
+}
+
+h4 {
+  background-color: #d6e9f7; /* bleu clair */
+}
+
+h5 {
+  background-color: #e9f3fb;
+}
+
+/* --- Code et sorties --- */
+pre, code {
+  background-color: #1b263b;
+  color: #f1f1f1;
+  font-family: "Fira Code", monospace;
+  border-radius: 6px;
+}
+
+pre {
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.r {
+  background-color: #0d1b2a;
+  color: #f8f9fa;
+}
+
+/* --- Texte --- */
+p {
+  color: #2b2b2b;
+  margin: 10px 0 20px;
+}
+
+/* --- Liens --- */
+a {
+  color: #0077b6;
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* --- Citations --- */
+blockquote {
+  border-left: 5px solid #a9cce3;
+  background-color: #f1f8fb;
+  padding: 10px 20px;
+  color: #333;
+  font-style: italic;
+  border-radius: 5px;
+}
+```
+
+---
+### TP5_a25_reg_app
+
+Jeu de données dédié à la régression
+
+#### Chargement des données
+```{r}
+if(!require(here)) install.packages("here")
+library(here)
+
+# Chemin vers les données
+data_path <- here("src", "data", "TP5_a25_reg_app.txt")
+
+# Lecture des données
+reg_data <- read.table(
+  data_path,
+  header = TRUE,
+  sep = " ",
+  quote = "\"",
+  stringsAsFactors = FALSE
+)
+
+# y as factor ?
+
+# Aperçu
+head(reg_data)
+```
+```{r}
+dim(reg_data)
+str(reg_data)
+```
+Le jeu de données est composé de **500 observations**, de **100 variables numériques** (X1 à X100) et d'une **variable cible numérique** y.
+
+#### Résumé statistique
+```{r}
+# Résumé statistique simple
+summary(reg_data)
+```
+##### Variables descriptives
+
+- Les X semblent **toutes bornées entre environ 0 et 10**, probablement issues d’une génération aléatoire uniforme ou d’une normalisation.  
+
+- Les moyennes et médianes des X sont très proches (autour de 5) => **symétrie globale** des distributions, pas de fort déséquilibre entre les variables  
+
+- Les plages suggèrent que toutes les variables ont la **même échelle** => pas besoin de normalisation (ce qui est étrange pour de la regression...)  
+
+- Les écarts entre les quartiles sont constants => **dispersion moyenne constante** entre les variables  
+
+
+##### Variable cible
+- La variable cible y est continue et non bornée, avec une **plage de [-169, 182]** => y varie fortement  
+
+- La moyenne et la médiane sont proches => **pas d'asymétrie**  
+
+- Valeurs aberrantes possibles (à vérifier par la suite)
+
+```{r}
+# Statistiques détaillées
+library(psych)
+psych::describe(reg_data)
+```
+
+```{r}
+# Vérification des valeurs manquantes
+colSums(is.na(reg_data))
+```
+Aucune valeur manquante.
+
+#### Valeurs aberrantes
+```{r}
+library(ggplot2)
+
+vars_cont <- colnames(reg_data)[1:100]
+
+reg_data_long <- reg_data %>% select(all_of(vars_cont)) %>% pivot_longer(cols = everything(), names_to = "variable", values_to = "valeur")
+
+ggplot(reg_data_long, aes(x = variable, y = valeur)) +
+  geom_boxplot(outlier.color = "red", fill = "steelblue", alpha = 0.6) +
+  theme_minimal() +
+  labs(title = "Boxplots des variables X1 à X100")
+``` 
+Pas de valeurs aberrantes. Distributions extrêmement uniformes et quasi-identiques entre les variables.
+
+```{r}
+ggplot(reg_data, aes(y = y)) +
+  geom_boxplot(fill = "orange", color = "black", outlier.color = "red", alpha = 0.7) +
+  theme_minimal() +
+  labs(title = "Détection des valeurs extrêmes de y")
+```
+```{r}
+# Calcul des seuils
+Q1 <- quantile(reg_data$y, 0.25)
+Q3 <- quantile(reg_data$y, 0.75)
+IQR <- Q3 - Q1
+
+seuil_inf <- Q1 - 1.5 * IQR
+seuil_sup <- Q3 + 1.5 * IQR
+
+# Identifier les valeurs aberrantes
+outliers_y <- reg_data$y[reg_data$y < seuil_inf | reg_data$y > seuil_sup]
+n_outliers <- length(outliers_y)
+cat("Nombre de valeurs aberrantes de y :", n_outliers, "\n")
+
+# Afficher les valeurs et leurs indices
+which_outliers <- which(reg_data$y < seuil_inf | reg_data$y > seuil_sup)
+data.frame(Index = which_outliers, y = reg_data$y[which_outliers])
+```
+On n'observe qu'une seule valeur abérrante pour y à l'indice 57.
+
+
+#### Distributions
+
+```{r}
+library(tidyverse)
+# Histogrammes 
+num_vars <- names(reg_data)[sapply(data, is.numeric)]
+
+for (var in num_vars) {
+  print(
+    ggplot(reg_data, aes_string(x = var)) +
+      geom_histogram(bins = 30, fill = "steelblue", color = "white") +
+      labs(title = paste("Distribution de", var), x = var, y = "Fréquence") +
+      theme_minimal()
+  )
+}
+```
+```{r}
+# Histogramme et densité
+ggplot(reg_data, aes(x = y)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "skyblue", color = "black", alpha = 0.7) +
+  geom_density(color = "red", size = 1) +
+  theme_minimal() +
+  labs(title = "Distribution de la variable cible y")
+```
+Les **variables X1 à X100** semblent suivre des **distributions aléatoires** : distributions relativement uniformes, sans concentration vraiment marquée autour d'une valeur (sauf peut-être pour X57 ?), aucune asymétrie marquée, etc  
+
+**y** semble suivre une **loi normale**.
+
+#### Corrélations
+```{r}
+library(corrplot)
+# Matrice de corrélation
+cor_mat <- cor(reg_data)
+corrplot(cor_mat, method = "color", type = "upper", tl.cex = 0.7,
+         title = "Matrice de corrélation entre variables")
+
+# Corrélation de chaque variable avec y
+cor_y <- cor(reg_data %>% select(-y), reg_data$y)
+cor_y <- sort(cor_y, decreasing = TRUE)
+print(cor_y)
+
+# Identifier les variables les plus explicatives (corrélation forte avec y)
+top_vars <- names(cor_y)[1:6]
+cat("Variables les plus corrélées positivement avec y :\n")
+print(top_vars)
+```
+Les variables ne sont **pas corrélées** entre elles => aucune colinéarité, aucune redondance importante => aucun intérêt à utiliser Ridge  
+
+Par ailleurs, la plupart des variables explicatives ont peu ou pas de relation linéaire forte avec la variable cible y => **aucune relation linéaire marquée entre une seule variable et y**
+
+
+#### Tests de régresseurs
+Au vu des données, les deux meilleurs classifieurs devraient être la régression linéaire et LASSO.  
+
+##### Régression linéaire
+
+```{r}
+library(dplyr)
+
+set.seed(123)
+
+# Préparation des données
+X <- reg_data %>% select(-y)
+y <- reg_data$y
+n <- nrow(reg_data)
+
+# Validation croisée 10-fold
+k <- 10
+folds <- sample(rep(1:k, length.out = n))
+
+rmse_fold <- function(y_true, y_pred) {
+  sqrt(mean((y_true - y_pred)^2))
+}
+
+rmse_results <- numeric(k)
+
+for (i in 1:k) {
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:n, test_idx)
+  
+  train_df <- reg_data[train_idx, ]
+  test_df <- reg_data[test_idx, ]
+  
+  # Régression linéaire
+  lm_mod <- lm(y ~ ., data = train_df)
+  
+  # Prédiction
+  pred <- predict(lm_mod, newdata = test_df)
+  
+  # RMSE
+  rmse_results[i] <- rmse_fold(test_df$y, pred)
+}
+
+# Résultat
+mean_rmse <- mean(rmse_results)
+sd_rmse <- sd(rmse_results)
+
+cat("RMSE moyen :", mean_rmse, "\n")
+cat("Écart-type du RMSE :", sd_rmse, "\n")
+```
+
+##### LASSO
+
+Le jeu de données contient bcp de variables, surtout par rapport au nombre d'observations. Il peut donc être intéressant d'utiliser LASSO pour faire de la sélection de variables. (Aucun intérêt ici à utiliser Ridge ou elastic net) 
+
+```{r}
+# Préparation
+library(glmnet)
+X <- as.matrix(reg_data %>% select(-y))
+y <- reg_data$y
+
+# Traitement de l’outlier
+y_no_outlier <- y[y > quantile(y, 0.01)]  
+
+# Validation croisée LASSO
+set.seed(123)
+cv_lasso <- cv.glmnet(X, y, alpha = 1, standardize = TRUE)
+plot(cv_lasso)
+
+# Coefficients retenus
+coef(cv_lasso, s = "lambda.min")
+
+# Évaluation
+pred <- predict(cv_lasso, newx = X, s = "lambda.min")
+R2 <- cor(pred, y)^2
+cat("R² =", R2)
+```
+ 
+LASSO utilise globalement toutes les variables (sauf X1, X4, X28, X54, X63, X65, X66, X69, X86).  
+R² = 0.9737215
+
+##### Comparaison de tous les modèles de régression (au cas où)
+```{r}
+library(glmnet)
+library(randomForest)
+library(xgboost)
+library(dplyr)
+
+set.seed(123)
+
+# Préparation des données
+X <- reg_data %>% select(-y) %>% as.matrix()
+y <- reg_data$y
+
+# Standardisation pour modèles linéaires régularisés
+X_scaled <- scale(X)
+
+
+# Validation croisée 10-fold
+k <- 10
+folds <- sample(rep(1:k, length.out = nrow(X_scaled)))
+
+rmse_fold <- function(y_true, y_pred) {
+  sqrt(mean((y_true - y_pred)^2))
+}
+
+# Stockage des RMSE
+results <- list(LM = numeric(k),
+                Ridge = numeric(k),
+                Lasso = numeric(k),
+                RF = numeric(k),
+                XGB = numeric(k))
+
+for (i in 1:k) {
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:nrow(X_scaled), test_idx)
+  
+  X_train <- X_scaled[train_idx, , drop = FALSE]
+  y_train <- y[train_idx]
+  X_test <- X_scaled[test_idx, , drop = FALSE]
+  y_test <- y[test_idx]
+  
+  
+  # Régression linéaire
+  train_df <- data.frame(y = y_train, X_train)
+  colnames(train_df)[-1] <- colnames(reg_data)[-ncol(reg_data)]
+  
+  test_df <- data.frame(X_test)
+  colnames(test_df) <- colnames(train_df)[-1]
+  
+  lm_mod <- lm(y ~ ., data = train_df)
+  pred_lm <- predict(lm_mod, newdata = test_df)
+  results$LM[i] <- rmse_fold(y_test, pred_lm)
+  
+  
+  # Ridge
+  ridge_mod <- cv.glmnet(X_train, y_train, alpha = 0, nfolds = 5)
+  pred_ridge <- predict(ridge_mod, X_test, s = "lambda.min")
+  results$Ridge[i] <- rmse_fold(y_test, pred_ridge)
+  
+
+  # Lasso
+  lasso_mod <- cv.glmnet(X_train, y_train, alpha = 1, nfolds = 5)
+  pred_lasso <- predict(lasso_mod, X_test, s = "lambda.min")
+  results$Lasso[i] <- rmse_fold(y_test, pred_lasso)
+  
+  
+  # Random Forest
+  rf_mod <- randomForest(x = X_train, y = y_train, ntree = 200)
+  pred_rf <- predict(rf_mod, X_test)
+  results$RF[i] <- rmse_fold(y_test, pred_rf)
+  
+
+  # XGBoost
+  xgb_train <- xgb.DMatrix(data = X_train, label = y_train)
+  xgb_test <- xgb.DMatrix(data = X_test, label = y_test)
+  xgb_mod <- xgboost(data = xgb_train, nrounds = 100, objective = "reg:squarederror", verbose = 0)
+  pred_xgb <- predict(xgb_mod, xgb_test)
+  results$XGB[i] <- rmse_fold(y_test, pred_xgb)
+}
+
+
+# Comparaison
+mean_rmse <- sapply(results, mean)
+sd_rmse <- sapply(results, sd)
+
+res_df <- data.frame(Model = names(mean_rmse),
+                     RMSE_Mean = mean_rmse,
+                     RMSE_SD = sd_rmse)
+print(res_df)
+
+# Meilleur modèle
+best_model <- res_df$Model[which.min(res_df$RMSE_Mean)]
+cat("\nMeilleur modèle selon RMSE moyen :", best_model, "\n")
+```
+Les résultats confirment bien les attentes => le meilleur modèle en termes de RMSE est LASSO
