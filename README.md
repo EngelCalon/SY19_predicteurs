@@ -4,12 +4,9 @@ L’objectif de ce projet est de traiter :
 1. Deux bases de données simulées :
 * un problème de classification (données TP5_a25_clas_app.txt)
 * un problème de régression (données TP5_a25_reg_app.txt).
-2. Une base de données réelles selon de notre choix.
-  
-Dans chaque cas, il faudra, en utilisant les méthodes vues en cours de **SY19** (*Machine learning*) lors du semestre P25, proposer
-le meilleur prédicteur possible, et une évaluation de la qualité de ce prédicteur
-(probabilité d’erreur pour le classifieur, espérance de l’erreur quadratique
-pour le modèle de régression). 
+2. Une base de données réelles selon notre choix.
+
+Dans chaque cas, il faudra, en utilisant les méthodes vues en cours de **SY19** (*Machine learning*) lors du semestre P25, proposer le meilleur prédicteur possible, et une évaluation de la qualité de ce prédicteur (probabilité d’erreur pour le classifieur, espérance de l’erreur quadratique pour le modèle de régression). 
 
 ---
 
@@ -21,7 +18,7 @@ SY19_predicteurs/
 
 ├── src/                      # Tout le code source
 
-│   ├── const/                # Constient les constantes du projet
+│   ├── const/                # Contient les constantes du projet
 
 │
 
