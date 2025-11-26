@@ -351,7 +351,6 @@ Le jeu de données contient bcp de variables, surtout par rapport au nombre d'ob
 library(glmnet)
 ```
 
-
 ```{r}
 X <- as.matrix(reg_data %>% select(-y))
 y <- reg_data$y
@@ -386,6 +385,7 @@ library(dplyr)
 library(splines)
 library(mgcv)
 library(autogam)
+library(rpart)
 
 set.seed(123)
 
@@ -411,7 +411,9 @@ results <- list(LM = numeric(k),
                 Lasso = numeric(k),
                 RF = numeric(k),
                 XGB = numeric(k),
-                SPLGAM = numeric(k))
+                SPLGAM = numeric(k),
+                REGTREE = numeric(k),
+                PRUNED_REGTREE = numeric(k))
 
 for (i in 1:k) {
   test_idx <- which(folds == i)
@@ -463,6 +465,19 @@ for (i in 1:k) {
   xgb_mod <- xgboost(data = xgb_train, nrounds = 100, objective = "reg:squarederror", verbose = 0)
   pred_xgb <- predict(xgb_mod, xgb_test)
   results$XGB[i] <- rmse_fold(y_test, pred_xgb)
+  
+  # Regression Tree + pruned
+  tree_mod <- rpart(y ~ ., data=train_df, method="anova",control = rpart.control(minbucket = 10, cp = 0))
+  pred_tree <- predict(tree_mod, newdata=test_df)
+  results$REGTREE[i] <- rmse_fold(y_test, pred_tree)
+    # pruning tree
+  i_min <- which.min(tree_mod$cptable[, 4])
+  x <- tree_mod$cptable[i_min, 4] + tree_mod$cptable[i_min, 5]
+  ii <- which(tree_mod$cptable[, 4] <= x)
+  cp_opt <- tree_mod$cptable[min(ii), 1]
+  pruned_tree <- prune(tree_mod, cp=cp_opt)
+  pred_tree_pruned <- predict(pruned_tree, newdata=test_df)
+  results$PRUNED_REGTREE[i] <- rmse_fold(y_test, pred_tree_pruned)
 }
 
 
