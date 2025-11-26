@@ -115,17 +115,21 @@ blockquote {
 }
 ```
 
----
+------------------------------------------------------------------------
+
 ### TP5_a25_reg_app
 
 Jeu de données dédié à la régression
 
 #### Chargement des données
+
 ```{r}
 if(!require(here)) install.packages("here")
 library(here)
-
+library(magrittr)
+library(tidyverse)
 # Chemin vers les données
+
 data_path <- here("src", "data", "TP5_a25_reg_app.txt")
 
 # Lecture des données
@@ -142,34 +146,38 @@ reg_data <- read.table(
 # Aperçu
 head(reg_data)
 ```
+
 ```{r}
 dim(reg_data)
 str(reg_data)
 ```
+
 Le jeu de données est composé de **500 observations**, de **100 variables numériques** (X1 à X100) et d'une **variable cible numérique** y.
 
 #### Résumé statistique
+
 ```{r}
 # Résumé statistique simple
 summary(reg_data)
 ```
+
 ##### Variables descriptives
 
-- Les X semblent **toutes bornées entre environ 0 et 10**, probablement issues d’une génération aléatoire uniforme ou d’une normalisation.  
+-   Les X semblent **toutes bornées entre environ 0 et 10**, probablement issues d’une génération aléatoire uniforme ou d’une normalisation.
 
-- Les moyennes et médianes des X sont très proches (autour de 5) => **symétrie globale** des distributions, pas de fort déséquilibre entre les variables  
+-   Les moyennes et médianes des X sont très proches (autour de 5) =\> **symétrie globale** des distributions, pas de fort déséquilibre entre les variables
 
-- Les plages suggèrent que toutes les variables ont la **même échelle** => pas besoin de normalisation (ce qui est étrange pour de la regression...)  
+-   Les plages suggèrent que toutes les variables ont la **même échelle** =\> pas besoin de normalisation (ce qui est étrange pour de la regression...)
 
-- Les écarts entre les quartiles sont constants => **dispersion moyenne constante** entre les variables  
-
+-   Les écarts entre les quartiles sont constants =\> **dispersion moyenne constante** entre les variables
 
 ##### Variable cible
-- La variable cible y est continue et non bornée, avec une **plage de [-169, 182]** => y varie fortement  
 
-- La moyenne et la médiane sont proches => **pas d'asymétrie**  
+-   La variable cible y est continue et non bornée, avec une **plage de [-169, 182]** =\> y varie fortement
 
-- Valeurs aberrantes possibles (à vérifier par la suite)
+-   La moyenne et la médiane sont proches =\> **pas d'asymétrie**
+
+-   Valeurs aberrantes possibles (à vérifier par la suite)
 
 ```{r}
 # Statistiques détaillées
@@ -181,9 +189,11 @@ psych::describe(reg_data)
 # Vérification des valeurs manquantes
 colSums(is.na(reg_data))
 ```
+
 Aucune valeur manquante.
 
 #### Valeurs aberrantes
+
 ```{r}
 library(ggplot2)
 
@@ -195,7 +205,8 @@ ggplot(reg_data_long, aes(x = variable, y = valeur)) +
   geom_boxplot(outlier.color = "red", fill = "steelblue", alpha = 0.6) +
   theme_minimal() +
   labs(title = "Boxplots des variables X1 à X100")
-``` 
+```
+
 Pas de valeurs aberrantes. Distributions extrêmement uniformes et quasi-identiques entre les variables.
 
 ```{r}
@@ -204,6 +215,7 @@ ggplot(reg_data, aes(y = y)) +
   theme_minimal() +
   labs(title = "Détection des valeurs extrêmes de y")
 ```
+
 ```{r}
 # Calcul des seuils
 Q1 <- quantile(reg_data$y, 0.25)
@@ -222,8 +234,8 @@ cat("Nombre de valeurs aberrantes de y :", n_outliers, "\n")
 which_outliers <- which(reg_data$y < seuil_inf | reg_data$y > seuil_sup)
 data.frame(Index = which_outliers, y = reg_data$y[which_outliers])
 ```
-On n'observe qu'une seule valeur abérrante pour y à l'indice 57.
 
+On n'observe qu'une seule valeur abérrante pour y à l'indice 57.
 
 #### Distributions
 
@@ -241,6 +253,7 @@ for (var in num_vars) {
   )
 }
 ```
+
 ```{r}
 # Histogramme et densité
 ggplot(reg_data, aes(x = y)) +
@@ -249,11 +262,13 @@ ggplot(reg_data, aes(x = y)) +
   theme_minimal() +
   labs(title = "Distribution de la variable cible y")
 ```
-Les **variables X1 à X100** semblent suivre des **distributions aléatoires** : distributions relativement uniformes, sans concentration vraiment marquée autour d'une valeur (sauf peut-être pour X57 ?), aucune asymétrie marquée, etc  
+
+Les **variables X1 à X100** semblent suivre des **distributions aléatoires** : distributions relativement uniformes, sans concentration vraiment marquée autour d'une valeur (sauf peut-être pour X57 ?), aucune asymétrie marquée, etc
 
 **y** semble suivre une **loi normale**.
 
 #### Corrélations
+
 ```{r}
 library(corrplot)
 # Matrice de corrélation
@@ -271,13 +286,14 @@ top_vars <- names(cor_y)[1:6]
 cat("Variables les plus corrélées positivement avec y :\n")
 print(top_vars)
 ```
-Les variables ne sont **pas corrélées** entre elles => aucune colinéarité, aucune redondance importante => aucun intérêt à utiliser Ridge  
 
-Par ailleurs, la plupart des variables explicatives ont peu ou pas de relation linéaire forte avec la variable cible y => **aucune relation linéaire marquée entre une seule variable et y**
+Les variables ne sont **pas corrélées** entre elles =\> aucune colinéarité, aucune redondance importante =\> aucun intérêt à utiliser Ridge
 
+Par ailleurs, la plupart des variables explicatives ont peu ou pas de relation linéaire forte avec la variable cible y =\> **aucune relation linéaire marquée entre une seule variable et y**
 
 #### Tests de régresseurs
-Au vu des données, les deux meilleurs classifieurs devraient être la régression linéaire et LASSO.  
+
+Au vu des données, les deux meilleurs classifieurs devraient être la régression linéaire et LASSO.
 
 ##### Régression linéaire
 
@@ -328,11 +344,15 @@ cat("Écart-type du RMSE :", sd_rmse, "\n")
 
 ##### LASSO
 
-Le jeu de données contient bcp de variables, surtout par rapport au nombre d'observations. Il peut donc être intéressant d'utiliser LASSO pour faire de la sélection de variables. (Aucun intérêt ici à utiliser Ridge ou elastic net) 
+Le jeu de données contient bcp de variables, surtout par rapport au nombre d'observations. Il peut donc être intéressant d'utiliser LASSO pour faire de la sélection de variables. (Aucun intérêt ici à utiliser Ridge ou elastic net)
 
 ```{r}
 # Préparation
 library(glmnet)
+```
+
+
+```{r}
 X <- as.matrix(reg_data %>% select(-y))
 y <- reg_data$y
 
@@ -345,23 +365,27 @@ cv_lasso <- cv.glmnet(X, y, alpha = 1, standardize = TRUE)
 plot(cv_lasso)
 
 # Coefficients retenus
-coef(cv_lasso, s = "lambda.min")
+coff <- coef(cv_lasso, s = "lambda.min")
 
 # Évaluation
 pred <- predict(cv_lasso, newx = X, s = "lambda.min")
 R2 <- cor(pred, y)^2
 cat("R² =", R2)
 ```
- 
-LASSO utilise globalement toutes les variables (sauf X1, X4, X28, X54, X63, X65, X66, X69, X86).  
+
+LASSO utilise globalement toutes les variables (sauf X1, X4, X28, X54, X63, X65, X66, X69, X86).\
 R² = 0.9737215
 
 ##### Comparaison de tous les modèles de régression (au cas où)
+
 ```{r}
 library(glmnet)
 library(randomForest)
 library(xgboost)
 library(dplyr)
+library(splines)
+library(mgcv)
+library(autogam)
 
 set.seed(123)
 
@@ -386,7 +410,8 @@ results <- list(LM = numeric(k),
                 Ridge = numeric(k),
                 Lasso = numeric(k),
                 RF = numeric(k),
-                XGB = numeric(k))
+                XGB = numeric(k),
+                SPLGAM = numeric(k))
 
 for (i in 1:k) {
   test_idx <- which(folds == i)
@@ -409,6 +434,10 @@ for (i in 1:k) {
   pred_lm <- predict(lm_mod, newdata = test_df)
   results$LM[i] <- rmse_fold(y_test, pred_lm)
   
+  # Splines + GAM
+  splgam_mod <- autogam(data=train_df,y_col="y")
+  pred_splgam <- predict(splgam_mod, test_df, type = "response")
+  results$SPLGAM[i] <- rmse_fold(y_test, pred_splgam)
   
   # Ridge
   ridge_mod <- cv.glmnet(X_train, y_train, alpha = 0, nfolds = 5)
@@ -450,4 +479,5 @@ print(res_df)
 best_model <- res_df$Model[which.min(res_df$RMSE_Mean)]
 cat("\nMeilleur modèle selon RMSE moyen :", best_model, "\n")
 ```
-Les résultats confirment bien les attentes => le meilleur modèle en termes de RMSE est LASSO
+
+Les résultats confirment bien les attentes =\> le meilleur modèle en termes de RMSE est LASSO
