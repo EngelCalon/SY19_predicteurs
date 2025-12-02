@@ -186,7 +186,7 @@ Leur distribution est relativement centrée autour de 3 à 5.
 
 y prend les valeurs 1, 2 et 3 => **3 classes**
 
-Moyenne = 2.20, Médiane = 2, premier quartile = 2 => la **classe 2 semble majoritaire** (et la classe 1 la moins représentée ?)
+Moyenne = 2.20, Médiane = 2, premier quartile = 2 => la classe 1 est la classe la moins représentée
 
 ```{r}
 # Nombre de valeurs manquantes
@@ -265,4 +265,130 @@ for (var in head(num_vars, 50)) {
 ```
 Cela confirme que les variables X21 à X50 contiennent de nombreuses valeurs aberrantes => normalisation
 
-#### ACP
+
+#### Remarques/ Synthèse
+
+* Standardisation indispensable (au moins pour X21–X45 et X46–X50) => centrage-réduction
+
+* pour les variables avec outliers, on peut tester un robust scaling (basé sur médiane et IQR)
+
+* Modèles à tester :
+  
+  * Random Forest et Gradient Boosting (XGBoost, LightGBM, CatBoost) => Insensibles à l’échelle et gèrent très bien les distributions mixtes, variables peu informatives et peu corrélées, les outliers et les interactions complexes. Ils sont aussi robustes pour des classes déséquilibrées
+  * LDA / QDA (après standardisation) => variables X21–X50 semblent gaussiennes, absence de corrélations fortes mais Sensibles au déséquilibre de classes et sensibles à l'échelle
+  * SVM (linéaire ou RBF) : Très performants quand il y a peu de corrélation entre variables. Le SVM RBF est bon dans des espaces où les frontières ne sont pas linéaires. MAIS exigent un scaling strict, Sensibles aux outliers et nécessite une feature selection
+  * classes déséquilibrées : Oversampling avec SMOTE (fonctionne bien si features gaussiennes) ou Random oversampling et Undersampling léger des classes 2 et 3.
+
+
+
+#### LDA & QDA
+
+##### LDA
+
+```{r}
+library(MASS)
+
+# y as factor
+clas_data$y <- factor(clas_data$y)
+
+k <- 10
+n <- nrow(clas_data)
+folds <- sample(rep(1:k, length.out = n))
+
+lda_acc <- numeric(k)
+
+for (i in 1:k) {
+
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:n, test_idx)
+
+  train <- clas_data[train_idx, ]
+  test  <- clas_data[test_idx, ]
+
+  # Standardisation 
+  x_train <- train[, 1:50]
+  x_test  <- test[, 1:50]
+
+  means <- apply(x_train, 2, mean)
+  sds   <- apply(x_train, 2, sd)
+
+  x_train_sc <- scale(x_train, center = means, scale = sds)
+  x_test_sc  <- scale(x_test,  center = means, scale = sds)
+
+  train_sc <- data.frame(x_train_sc, y = train$y)
+  test_sc  <- data.frame(x_test_sc,  y = test$y)
+
+  # LDA
+  lda_model <- lda(y ~ ., data = train_sc)
+  lda_pred  <- predict(lda_model, test_sc)$class
+
+  # Accuracy
+  lda_acc[i] <- mean(lda_pred == test_sc$y)
+}
+
+cat("\nRESULTATS LDA\n")
+cat("Accuracies par fold : ", lda_acc, "\n")
+cat("Moyenne accuracy    : ", mean(lda_acc), "\n")
+cat("Écart-type accuracy : ", sd(lda_acc), "\n")
+```
+
+##### QDA 
+
+```{r}
+library(MASS)
+
+# y as factor
+clas_data$y <- factor(clas_data$y)
+
+k <- 10
+n <- nrow(clas_data)
+folds <- sample(rep(1:k, length.out = n))
+
+qda_acc <- numeric(k)
+
+for (i in 1:k) {
+
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:n, test_idx)
+
+  train <- clas_data[train_idx, ]
+  test  <- clas_data[test_idx, ]
+
+  # Standardisation
+  x_train <- train[, 1:50]
+  x_test  <- test[, 1:50]
+
+  means <- apply(x_train, 2, mean)
+  sds   <- apply(x_train, 2, sd)
+
+  x_train_sc <- scale(x_train, center = means, scale = sds)
+  x_test_sc  <- scale(x_test,  center = means, scale = sds)
+
+  train_sc <- data.frame(x_train_sc, y = train$y)
+  test_sc  <- data.frame(x_test_sc,  y = test$y)
+
+  # QDA
+  qda_model <- qda(y ~ ., data = train_sc)
+  qada_pred <- predict(qda_model, test_sc)$class
+
+  # Accuracy
+  qda_acc[i] <- mean(qada_pred == test_sc$y)
+}
+
+cat("\nRESULTATS QDA\n")
+cat("Accuracies par fold : ", qda_acc, "\n")
+cat("Moyenne accuracy    : ", mean(qda_acc), "\n")
+cat("Écart-type accuracy : ", sd(qda_acc), "\n")
+```
+
+On obtient de mauvais résultats pour LDA et QDA. Cela s'explique par le fait qu'il n'existe pas de frontière nette entre les classes (distributions très entremêlées d'après l'analyse).
+
+Par ailleurs, les variables X1-X20 sont peu informatives (du bruit peut-être ? => si c'est le cas LDA et QDA sont particulièrement sensibles au bruit) => sélection de variables ? 
+
+déséquilibre des classes
+
+LDA/QDA supposent :
+* absence d’outliers extrêmes,
+* homogénéité des variances,
+* matrices de covariance bien conditionnées
+Ici, les variables n'ont pas les mêmes variances, il y a des valeurs atypiques et, de plus, QDA doit estimer 3 matrices de covariance complètes 50×50 avec relativement peu de données => pas stable
