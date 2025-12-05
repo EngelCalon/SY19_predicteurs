@@ -115,17 +115,21 @@ blockquote {
 }
 ```
 
----
+------------------------------------------------------------------------
+
 ### TP5_a25_reg_app
 
 Jeu de données dédié à la régression
 
 #### Chargement des données
+
 ```{r}
 if(!require(here)) install.packages("here")
 library(here)
-
+library(magrittr)
+library(tidyverse)
 # Chemin vers les données
+
 data_path <- here("src", "data", "TP5_a25_reg_app.txt")
 
 # Lecture des données
@@ -142,34 +146,38 @@ reg_data <- read.table(
 # Aperçu
 head(reg_data)
 ```
+
 ```{r}
 dim(reg_data)
 str(reg_data)
 ```
+
 Le jeu de données est composé de **500 observations**, de **100 variables numériques** (X1 à X100) et d'une **variable cible numérique** y.
 
 #### Résumé statistique
+
 ```{r}
 # Résumé statistique simple
 summary(reg_data)
 ```
+
 ##### Variables descriptives
 
-- Les X semblent **toutes bornées entre environ 0 et 10**, probablement issues d’une génération aléatoire uniforme ou d’une normalisation.  
+-   Les X semblent **toutes bornées entre environ 0 et 10**, probablement issues d’une génération aléatoire uniforme ou d’une normalisation.
 
-- Les moyennes et médianes des X sont très proches (autour de 5) => **symétrie globale** des distributions, pas de fort déséquilibre entre les variables  
+-   Les moyennes et médianes des X sont très proches (autour de 5) =\> **symétrie globale** des distributions, pas de fort déséquilibre entre les variables
 
-- Les plages suggèrent que toutes les variables ont la **même échelle** => pas besoin de normalisation (ce qui est étrange pour de la regression...)  
+-   Les plages suggèrent que toutes les variables ont la **même échelle** =\> pas besoin de normalisation (ce qui est étrange pour de la regression...)
 
-- Les écarts entre les quartiles sont constants => **dispersion moyenne constante** entre les variables  
-
+-   Les écarts entre les quartiles sont constants =\> **dispersion moyenne constante** entre les variables
 
 ##### Variable cible
-- La variable cible y est continue et non bornée, avec une **plage de [-169, 182]** => y varie fortement  
 
-- La moyenne et la médiane sont proches => **pas d'asymétrie**  
+-   La variable cible y est continue et non bornée, avec une **plage de [-169, 182]** =\> y varie fortement
 
-- Valeurs aberrantes possibles (à vérifier par la suite)
+-   La moyenne et la médiane sont proches =\> **pas d'asymétrie**
+
+-   Valeurs aberrantes possibles (à vérifier par la suite)
 
 ```{r}
 # Statistiques détaillées
@@ -181,9 +189,11 @@ psych::describe(reg_data)
 # Vérification des valeurs manquantes
 colSums(is.na(reg_data))
 ```
+
 Aucune valeur manquante.
 
 #### Valeurs aberrantes
+
 ```{r}
 library(ggplot2)
 
@@ -195,7 +205,8 @@ ggplot(reg_data_long, aes(x = variable, y = valeur)) +
   geom_boxplot(outlier.color = "red", fill = "steelblue", alpha = 0.6) +
   theme_minimal() +
   labs(title = "Boxplots des variables X1 à X100")
-``` 
+```
+
 Pas de valeurs aberrantes. Distributions extrêmement uniformes et quasi-identiques entre les variables.
 
 ```{r}
@@ -204,6 +215,7 @@ ggplot(reg_data, aes(y = y)) +
   theme_minimal() +
   labs(title = "Détection des valeurs extrêmes de y")
 ```
+
 ```{r}
 # Calcul des seuils
 Q1 <- quantile(reg_data$y, 0.25)
@@ -222,8 +234,8 @@ cat("Nombre de valeurs aberrantes de y :", n_outliers, "\n")
 which_outliers <- which(reg_data$y < seuil_inf | reg_data$y > seuil_sup)
 data.frame(Index = which_outliers, y = reg_data$y[which_outliers])
 ```
-On n'observe qu'une seule valeur abérrante pour y à l'indice 57.
 
+On n'observe qu'une seule valeur abérrante pour y à l'indice 57.
 
 #### Distributions
 
@@ -241,6 +253,7 @@ for (var in num_vars) {
   )
 }
 ```
+
 ```{r}
 # Histogramme et densité
 ggplot(reg_data, aes(x = y)) +
@@ -249,11 +262,13 @@ ggplot(reg_data, aes(x = y)) +
   theme_minimal() +
   labs(title = "Distribution de la variable cible y")
 ```
-Les **variables X1 à X100** semblent suivre des **distributions aléatoires** : distributions relativement uniformes, sans concentration vraiment marquée autour d'une valeur (sauf peut-être pour X57 ?), aucune asymétrie marquée, etc  
+
+Les **variables X1 à X100** semblent suivre des **distributions aléatoires** : distributions relativement uniformes, sans concentration vraiment marquée autour d'une valeur (sauf peut-être pour X57 ?), aucune asymétrie marquée, etc
 
 **y** semble suivre une **loi normale**.
 
 #### Corrélations
+
 ```{r}
 library(corrplot)
 # Matrice de corrélation
@@ -271,13 +286,14 @@ top_vars <- names(cor_y)[1:6]
 cat("Variables les plus corrélées positivement avec y :\n")
 print(top_vars)
 ```
-Les variables ne sont **pas corrélées** entre elles => aucune colinéarité, aucune redondance importante => aucun intérêt à utiliser Ridge  
 
-Par ailleurs, la plupart des variables explicatives ont peu ou pas de relation linéaire forte avec la variable cible y => **aucune relation linéaire marquée entre une seule variable et y**
+Les variables ne sont **pas corrélées** entre elles =\> aucune colinéarité, aucune redondance importante =\> aucun intérêt à utiliser Ridge
 
+Par ailleurs, la plupart des variables explicatives ont peu ou pas de relation linéaire forte avec la variable cible y =\> **aucune relation linéaire marquée entre une seule variable et y**
 
 #### Tests de régresseurs
-Au vu des données, les deux meilleurs classifieurs devraient être la régression linéaire et LASSO.  
+
+Au vu des données, les deux meilleurs classifieurs devraient être la régression linéaire et LASSO.
 
 ##### Régression linéaire
 
@@ -328,11 +344,14 @@ cat("Écart-type du RMSE :", sd_rmse, "\n")
 
 ##### LASSO
 
-Le jeu de données contient bcp de variables, surtout par rapport au nombre d'observations. Il peut donc être intéressant d'utiliser LASSO pour faire de la sélection de variables. (Aucun intérêt ici à utiliser Ridge ou elastic net) 
+Le jeu de données contient bcp de variables, surtout par rapport au nombre d'observations. Il peut donc être intéressant d'utiliser LASSO pour faire de la sélection de variables. (Aucun intérêt ici à utiliser Ridge ou elastic net)
 
 ```{r}
 # Préparation
 library(glmnet)
+```
+
+```{r}
 X <- as.matrix(reg_data %>% select(-y))
 y <- reg_data$y
 
@@ -345,23 +364,28 @@ cv_lasso <- cv.glmnet(X, y, alpha = 1, standardize = TRUE)
 plot(cv_lasso)
 
 # Coefficients retenus
-coef(cv_lasso, s = "lambda.min")
+coff <- coef(cv_lasso, s = "lambda.min")
 
 # Évaluation
 pred <- predict(cv_lasso, newx = X, s = "lambda.min")
 R2 <- cor(pred, y)^2
 cat("R² =", R2)
 ```
- 
-LASSO utilise globalement toutes les variables (sauf X1, X4, X28, X54, X63, X65, X66, X69, X86).  
+
+LASSO utilise globalement toutes les variables (sauf X1, X4, X28, X54, X63, X65, X66, X69, X86).\
 R² = 0.9737215
 
-##### Comparaison de tous les modèles de régression (au cas où)
+##### Comparaison de tous les modèles de régression
+
 ```{r}
 library(glmnet)
 library(randomForest)
 library(xgboost)
 library(dplyr)
+library(splines)
+library(mgcv)
+library(autogam)
+library(rpart)
 
 set.seed(123)
 
@@ -374,11 +398,14 @@ X_scaled <- scale(X)
 
 
 # Validation croisée 10-fold
-k <- 10
+k <- 5
 folds <- sample(rep(1:k, length.out = nrow(X_scaled)))
 
 rmse_fold <- function(y_true, y_pred) {
   sqrt(mean((y_true - y_pred)^2))
+}
+mse_fold <- function(y_true, y_pred) {
+  mean((y_true - y_pred)^2)
 }
 
 # Stockage des RMSE
@@ -386,7 +413,10 @@ results <- list(LM = numeric(k),
                 Ridge = numeric(k),
                 Lasso = numeric(k),
                 RF = numeric(k),
-                XGB = numeric(k))
+                XGB = numeric(k),
+                SPLGAM = numeric(k),
+                REGTREE = numeric(k),
+                PRUNED_REGTREE = numeric(k))
 
 for (i in 1:k) {
   test_idx <- which(folds == i)
@@ -407,47 +437,196 @@ for (i in 1:k) {
   
   lm_mod <- lm(y ~ ., data = train_df)
   pred_lm <- predict(lm_mod, newdata = test_df)
-  results$LM[i] <- rmse_fold(y_test, pred_lm)
+  #results$LM[i] <- rmse_fold(y_test, pred_lm)
+  results$LM[i] <- mse_fold(y_test, pred_lm)
   
+  # Splines + GAM
+  splgam_mod <- autogam(data=train_df,y_col="y")
+  pred_splgam <- predict(splgam_mod, test_df, type = "response")
+  #results$SPLGAM[i] <- rmse_fold(y_test, pred_splgam)
+  results$SPLGAM[i] <- mse_fold(y_test, pred_splgam)
   
   # Ridge
   ridge_mod <- cv.glmnet(X_train, y_train, alpha = 0, nfolds = 5)
   pred_ridge <- predict(ridge_mod, X_test, s = "lambda.min")
-  results$Ridge[i] <- rmse_fold(y_test, pred_ridge)
+  #results$Ridge[i] <- rmse_fold(y_test, pred_ridge)
+  results$Ridge[i] <- mse_fold(y_test, pred_ridge)
   
-
   # Lasso
   lasso_mod <- cv.glmnet(X_train, y_train, alpha = 1, nfolds = 5)
-  pred_lasso <- predict(lasso_mod, X_test, s = "lambda.min")
-  results$Lasso[i] <- rmse_fold(y_test, pred_lasso)
-  
+  pred_lasso <- predict(lasso_mod, X_test, s = "lambda.min") # Test 1se lambda
+  #results$Lasso[i] <- rmse_fold(y_test, pred_lasso)
+  results$Lasso[i] <- mse_fold(y_test, pred_lasso)
   
   # Random Forest
   rf_mod <- randomForest(x = X_train, y = y_train, ntree = 200)
   pred_rf <- predict(rf_mod, X_test)
-  results$RF[i] <- rmse_fold(y_test, pred_rf)
-  
+  #results$RF[i] <- rmse_fold(y_test, pred_rf)
+  results$RF[i] <- mse_fold(y_test, pred_rf)
 
   # XGBoost
   xgb_train <- xgb.DMatrix(data = X_train, label = y_train)
   xgb_test <- xgb.DMatrix(data = X_test, label = y_test)
   xgb_mod <- xgboost(data = xgb_train, nrounds = 100, objective = "reg:squarederror", verbose = 0)
   pred_xgb <- predict(xgb_mod, xgb_test)
-  results$XGB[i] <- rmse_fold(y_test, pred_xgb)
+  # results$XGB[i] <- rmse_fold(y_test, pred_xgb)
+  results$XGB[i] <- mse_fold(y_test, pred_xgb)
+  
+  # Regression Tree + pruned
+  tree_mod <- rpart(y ~ ., data=train_df, method="anova",control = rpart.control(minbucket = 10, cp = 0))
+  pred_tree <- predict(tree_mod, newdata=test_df)
+  # results$REGTREE[i] <- rmse_fold(y_test, pred_tree)
+  results$REGTREE[i] <- mse_fold(y_test, pred_tree)
+    # pruning tree
+  i_min <- which.min(tree_mod$cptable[, 4])
+  x <- tree_mod$cptable[i_min, 4] + tree_mod$cptable[i_min, 5]
+  ii <- which(tree_mod$cptable[, 4] <= x)
+  cp_opt <- tree_mod$cptable[min(ii), 1]
+  pruned_tree <- prune(tree_mod, cp=cp_opt)
+  pred_tree_pruned <- predict(pruned_tree, newdata=test_df)
+  #results$PRUNED_REGTREE[i] <- rmse_fold(y_test, pred_tree_pruned)
+  results$PRUNED_REGTREE[i] <- mse_fold(y_test, pred_tree_pruned)
 }
 
 
 # Comparaison
-mean_rmse <- sapply(results, mean)
-sd_rmse <- sapply(results, sd)
+mean_mse <- sapply(results, mean)
+sd_mse <- sapply(results, sd)
 
-res_df <- data.frame(Model = names(mean_rmse),
-                     RMSE_Mean = mean_rmse,
-                     RMSE_SD = sd_rmse)
+res_df <- data.frame(Model = names(mean_mse),
+                     MSE_Mean = mean_mse,
+                     MSE_SD = sd_mse)
 print(res_df)
 
 # Meilleur modèle
-best_model <- res_df$Model[which.min(res_df$RMSE_Mean)]
+best_model <- res_df$Model[which.min(res_df$MSE_Mean)]
 cat("\nMeilleur modèle selon RMSE moyen :", best_model, "\n")
 ```
-Les résultats confirment bien les attentes => le meilleur modèle en termes de RMSE est LASSO
+
+Les résultats confirment bien les attentes =\> le meilleur modèle en termes de RMSE est LASSO
+
+```{r}
+library(glmnet)
+library(randomForest)
+library(xgboost)
+library(dplyr)
+library(splines)
+library(mgcv)
+library(autogam)
+library(rpart)
+
+set.seed(123)
+
+# Préparation des données
+X <- reg_data %>% select(-y) %>% as.matrix()
+y <- reg_data$y
+
+# Standardisation pour modèles linéaires régularisés
+X_scaled <- scale(X)
+
+# Validation croisée 5-fold
+k <- 10
+folds <- sample(rep(1:k, length.out = nrow(X_scaled)))
+
+rmse_fold <- function(y_true, y_pred) {
+  sqrt(mean((y_true - y_pred)^2))
+}
+mse_fold <- function(y_true, y_pred) {
+  mean((y_true - y_pred)^2)
+}
+
+# Stockage des MSE
+results <- list(
+  LM = numeric(k),
+  Ridge = numeric(k),
+  Lasso = numeric(k),
+  Lasso_Opt = numeric(k),
+  Lasso_Sq = numeric(k),
+  Lasso_Sqrt = numeric(k),
+  Lasso_Log = numeric(k)
+)
+
+for (i in 1:k) {
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:nrow(X_scaled), test_idx)
+  
+  X_train <- X_scaled[train_idx, , drop = FALSE]
+  y_train <- y[train_idx]
+  X_test <- X_scaled[test_idx, , drop = FALSE]
+  y_test <- y[test_idx]
+  
+  # Transformation des variables pour LASSO
+  X_train_sq <- X_train^2
+  X_test_sq <- X_test^2
+  
+  X_train_sqrt <- sqrt(pmax(X_train, 0))
+  X_test_sqrt <- sqrt(pmax(X_test, 0))
+  
+  X_train_log <- log(pmax(X_train, 1e-6))
+  X_test_log <- log(pmax(X_test, 1e-6))
+  
+  # Préparation des data.frames pour LM, GAM, arbre
+  train_df <- data.frame(y = y_train, X_train)
+  colnames(train_df)[-1] <- colnames(reg_data)[-ncol(reg_data)]
+  
+  test_df <- data.frame(X_test)
+  colnames(test_df) <- colnames(train_df)[-1]
+  
+  # Régression linéaire
+  lm_mod <- lm(y ~ ., data = train_df)
+  pred_lm <- predict(lm_mod, newdata = test_df)
+  results$LM[i] <- mse_fold(y_test, pred_lm)
+  
+  # Ridge
+  ridge_mod <- cv.glmnet(X_train, y_train, alpha = 0, nfolds = 5)
+  pred_ridge <- predict(ridge_mod, X_test, s = "lambda.min")
+  results$Ridge[i] <- mse_fold(y_test, pred_ridge)
+  
+  # Lasso standard
+  lasso_mod <- cv.glmnet(X_train, y_train, alpha = 1, nfolds = 5)
+  pred_lasso <- predict(lasso_mod, X_test, s = "lambda.min")
+  results$Lasso[i] <- mse_fold(y_test, pred_lasso)
+  
+  # Lasso opti
+  lasso_cv <- cv.glmnet(X_train, y_train, alpha = 1, nfolds = 5)
+  pred_lasso_min <- predict(lasso_cv, X_test, s = "lambda.min")
+  pred_lasso_1se <- predict(lasso_cv, X_test, s = "lambda.1se")
+  
+  mse_min <- mse_fold(y_test, pred_lasso_min)
+  mse_1se <- mse_fold(y_test, pred_lasso_1se)
+  
+  if (mse_min <= mse_1se) {
+    results$Lasso_Opt[i] <- mse_min
+  } else {
+    results$Lasso_Opt[i] <- mse_1se
+  }
+  
+  # Lasso carré
+  lasso_sq_mod <- cv.glmnet(X_train_sq, y_train, alpha = 1, nfolds = 5)
+  pred_lasso_sq <- predict(lasso_sq_mod, X_test_sq, s = "lambda.min")
+  results$Lasso_Sq[i] <- mse_fold(y_test, pred_lasso_sq)
+  
+  # Lasso racine
+  lasso_sqrt_mod <- cv.glmnet(X_train_sqrt, y_train, alpha = 1, nfolds = 5)
+  pred_lasso_sqrt <- predict(lasso_sqrt_mod, X_test_sqrt, s = "lambda.min")
+  results$Lasso_Sqrt[i] <- mse_fold(y_test, pred_lasso_sqrt)
+  
+  # Lasso log
+  lasso_log_mod <- cv.glmnet(X_train_log, y_train, alpha = 1, nfolds = 5)
+  pred_lasso_log <- predict(lasso_log_mod, X_test_log, s = "lambda.min")
+  results$Lasso_Log[i] <- mse_fold(y_test, pred_lasso_log)
+}  
+ 
+# Comparaison
+mean_mse <- sapply(results, mean)
+sd_mse <- sapply(results, sd)
+
+res_df <- data.frame(Model = names(mean_mse),
+                     MSE_Mean = mean_mse,
+                     MSE_SD = sd_mse)
+print(res_df)
+
+# Meilleur modèle
+best_model <- res_df$Model[which.min(res_df$MSE_Mean)]
+cat("\nMeilleur modèle selon MSE moyen :", best_model, "\n")
+```
