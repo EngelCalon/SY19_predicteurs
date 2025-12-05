@@ -1016,7 +1016,7 @@ selected_vars
 library(glmnet)
 library(dplyr)
 
-set.seed(123)
+set.seed(1058)
 
 # Préparer les données
 X <- reg_data %>% select(-y) %>% as.matrix()
@@ -1049,6 +1049,11 @@ cat("Meilleur alpha :", best_alpha, "\n")
 cat("Lambda correspondant :", best_lambda, "\n")
 cat("MSE CV (d'après cv.glmnet) :", best_mse, "\n\n")
 
+# Variables sélectionnées
+coef_selected <- coef(best_model, s = "lambda.min")
+selected_vars <- rownames(coef_selected)[coef_selected[,1] != 0]
+selected_vars <- selected_vars[selected_vars != "(Intercept)"]
+cat("Variables sélectionnées :", selected_vars, "\n\n")
 
 # Refit final du modèle sur toutes les données
 final_model <- glmnet(X_scaled, y, alpha = best_alpha, lambda = best_lambda)
