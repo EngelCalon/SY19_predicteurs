@@ -1016,7 +1016,7 @@ selected_vars
 library(glmnet)
 library(dplyr)
 
-set.seed(1058)
+set.seed(123)
 
 # Préparer les données
 X <- reg_data %>% select(-y) %>% as.matrix()
@@ -1085,6 +1085,88 @@ rmse_cv  <- sqrt(mean_mse)
 cat("MSE CV sur le modèle final :", mean_mse, "\n")
 cat("RMSE CV sur le modèle final :", rmse_cv, "\n")
 ```
+```{r}
+library(glmnet)
+library(dplyr)
+
+# set.seed(123) # seed initial
+
+# Préparer les données
+X <- reg_data %>% select(-y) %>% as.matrix()
+y <- reg_data$y
+X_scaled <- scale(X)
+
+# Grille fine de lambda et alpha
+lambda_grid <- 10^seq(-2, 2, length.out = 200)
+alpha_grid  <- seq(0.8, 1, by = 0.02)
+
+# Paramètres de repeated CV
+n_repeats <- 20           # nombre de répétitions avec différentes seeds
+seeds <- sample(1:10000, n_repeats) # seeds différentes pour chaque répétition
+
+# Stocker les résultats
+results <- list()
+
+for(a in alpha_grid){
+  mse_seeds <- numeric(n_repeats)
+  
+  for(i in seq_along(seeds)){
+    set.seed(seeds[i])
+    cv_mod <- cv.glmnet(X_scaled, y, alpha = a, nfolds = 10, lambda = lambda_grid)
+    mse_seeds[i] <- min(cv_mod$cvm)
+  }
+  
+  # Moyenne de la MSE sur toutes les seeds
+  results[[as.character(a)]] <- mean(mse_seeds)
+}
+
+# Sélection du meilleur alpha
+best_alpha <- as.numeric(names(results)[which.min(unlist(results))])
+cat("Meilleur alpha moyen sur repeated CV :", best_alpha, "\n")
+best_mse   <- results[[as.character(best_alpha)]]
+cat("MSE CV moyen sur repeated CV :", best_mse, "\n")
+
+# Fit final avec alpha optimal
+final_cv <- cv.glmnet(X_scaled, y, alpha = best_alpha, nfolds = 10, lambda = lambda_grid)
+best_lambda <- final_cv$lambda.min
+cat("Lambda correspondant au meilleur alpha :", best_lambda, "\n")
+
+# Variables sélectionnées
+coef_selected <- coef(final_cv, s = "lambda.min")
+selected_vars <- rownames(coef_selected)[coef_selected[,1] != 0]
+selected_vars <- selected_vars[selected_vars != "(Intercept)"]
+cat("Variables sélectionnées :", selected_vars, "\n\n")
+
+# Refit final sur toutes les données
+final_model <- glmnet(X_scaled, y, alpha = best_alpha, lambda = best_lambda)
+
+# Validation croisée manuelle pour MSE réaliste
+k <- 10
+folds <- sample(rep(1:k, length.out = nrow(X_scaled)))
+mse_cv <- numeric(k)
+
+for(i in 1:k){
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:nrow(X_scaled), test_idx)
+  
+  X_train <- X_scaled[train_idx, selected_vars, drop = FALSE]
+  y_train <- y[train_idx]
+  X_test  <- X_scaled[test_idx, selected_vars, drop = FALSE]
+  y_test  <- y[test_idx]
+  
+  mod <- glmnet(X_train, y_train, alpha = best_alpha, lambda = best_lambda)
+  pred <- predict(mod, newx = X_test, s = best_lambda)
+  
+  mse_cv[i] <- mean((y_test - pred)^2)
+}
+
+mean_mse <- mean(mse_cv)
+rmse_cv  <- sqrt(mean_mse)
+
+cat("MSE CV final :", mean_mse, "\n")
+cat("RMSE CV final :", rmse_cv, "\n")
+```
+
 
 ##### Test de PCR, PLS, Bayesian Ridge et NN
 ```{r}
@@ -1131,6 +1213,25 @@ for(i in 1:k){
 }
 results$PCR <- mean(mse_pcr)
 
+# LASSO
+mse_lasso <- numeric(k)
+for(i in 1:k){
+  train_idx <- which(folds != i)
+  test_idx  <- which(folds == i)
+  
+  train_df <- df[train_idx, ]
+  test_df  <- df[test_idx, ]
+  ytrain <- train_df$y
+  xtrain <- as.matrix(train_df[, setdiff(names(train_df), "y")])
+  xtest  <- as.matrix(test_df[, setdiff(names(test_df), "y")])
+  
+  cv.out<-cv.glmnet(xtrain,ytrain,alpha=1)
+  reg <- glmnet(x = xtrain, y = ytrain,lambda=cv.out$lambda.min,alpha=1)
+  
+  pred<-predict(reg,s=cv.out$lambda.min,newx=xtest)
+  mse_lasso[i] <- mse_fold(test_df$y, pred)
+}
+results$LASSO <- mean(mse_lasso)
 
 # PLS
 mse_pls <- numeric(k)
