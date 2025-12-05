@@ -119,11 +119,16 @@ library('class')
 library('randomForest')
 library("kernlab")
 
+
 df_shuffled <- data_classif[sample(nrow(data_classif)), ]
 set.seed(123)
 
 df_train <- df_shuffled[1:800, ]
 df_test <- df_shuffled[801:nrow(df_shuffled), ]
+
+# Supprimer les lignes avec valeurs manquantes
+df_train <- df_train[complete.cases(df_train), ]
+df_test <- df_test[complete.cases(df_test), ]
 
 x_test <- df_test[, -1]
 y_test <- df_test$y
@@ -131,8 +136,8 @@ y_test <- df_test$y
 x_train <- df_train[, -1]
 y_train <- df_train$y
 
-# Regression logistiques
-reglog.fit1 <- glm(y ~ ., data = df_train, family = binomial)
+
+
 
 # LDA
 lda.fit1 <- lda(y ~ ., data = df_train)
@@ -156,7 +161,7 @@ svm.rbf <- ksvm(as.factor(y) ~ ., data = df_train, kernel = "rbfdot", C=10, type
 svm.poly <- ksvm(as.factor(y) ~ ., data = df_train, kernel = "polydot", C=10, type="C-svc")
 svm.vanilla <- ksvm(as.factor(y) ~ ., data = df_train, kernel = "vanilladot", C=10, type="C-svc")
 
-models <- list(reglog = reglog.fit1,
+models <- list(
                lda = lda.fit1,
                qda = qda.fit1,
                knn1 = knn.fit1,
@@ -181,25 +186,8 @@ for (model_name in names(models)) {
   AIC_value <- AIC(model)
   BIC_value <- BIC(model)
   Accuracy_value <- NA
-    if (model_name %in% c("reglog", "lda", "qda")) {
-        predictions <- predict(model, newdata = df_test)
-        if (model_name == "reglog") {
-        predicted_classes <- ifelse(predictions$fitted.values > 0.5, 1, 0)
-        } else {
-        predicted_classes <- predictions$class
-        }
-        Accuracy_value <- mean(predicted_classes == y_test)
-    } else if (grepl("knn", model_name)) {
-        predicted_classes <- model
-        Accuracy_value <- mean(predicted_classes == y_test)
-    } else if (model_name == "rf") {
-        predictions <- predict(model, newdata = df_test)
-        Accuracy_value <- mean(predictions == y_test)
-    } else if (grepl("svm", model_name)) {
-        predictions <- predict(model, newdata = df_test)
-        Accuracy_value <- mean(predictions == y_test)
-    }
-    results <- rbind(results, data.frame(Model = model_name,
+
+  results <- rbind(results, data.frame(Model = model_name,
                                          Accuracy = Accuracy_value,
                                          AIC = AIC_value,
                                          BIC = BIC_value))
