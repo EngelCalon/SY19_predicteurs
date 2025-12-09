@@ -407,6 +407,7 @@ clas_data_test  <- clas_data[-train_indices, ]
 library('leaps')
 reg.forward <- regsubsets(y ~ . , data = clas_data, method = 'forward')
 plot(reg.forward, scale = "r2", main = "Sélection — forward (R2)")
+forward.formula <- y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50
 ```
 y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50
 
@@ -415,6 +416,7 @@ y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50
 library('leaps')
 reg.backward <- regsubsets(y ~ . , data = clas_data, method = 'backward')
 plot(reg.backward, scale = "r2", main = "Sélection — backward (R2)")
+backward.formula <- y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50
 ```
 y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50
 
@@ -422,7 +424,7 @@ y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50
 ```{r}
 library(nnet)
 fit <- multinom(y ~ .,data=clas_data)
-sel.aic <- stepAIC(fit,scope=y ~ .,direction="both")
+sel.aic <- stepAIC(fit,scope=y ~ .,direction="both", trace=FALSE)
 aic.formula <- formula(sel.aic)
 print(formula(sel.aic))
 ```
@@ -431,7 +433,7 @@ y ~ X1 + X5 + X9 + X29 + X33 + X34 + X35 + X36 + X41 + X43 + X46 + X47 + X50
 library(nnet)
 fit <- multinom(y ~ .,data=clas_data)
 sel.bic <- stepAIC(fit,scope=y ~ .,direction="both",
-k=log(nrow(clas_data)))
+k=log(nrow(clas_data)), trace=FALSE)
 bic.formula <- formula(sel.bic)
 print(formula(sel.bic))
 ```
@@ -443,8 +445,8 @@ library(nnet)
 model.reg <- multinom(y ~ ., data=clas_data_train)
 model.reg.aic <- multinom(aic.formula, data=clas_data_train)
 model.reg.bic <- multinom(bic.formula, data=clas_data_train)
-model.reg.forward <- multinom(y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50, data=clas_data_train)
-model.reg.backward <- multinom(y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50, data=clas_data_train)
+model.reg.forward <- multinom(forward.formula, data=clas_data_train)
+model.reg.backward <- multinom(backward.formula, data=clas_data_train)
 
 pred.reg <- predict(model.reg, newdata=clas_data_test, type="response")
 pred.reg.aic <- predict(model.reg.aic, newdata=clas_data_test, type="response")
@@ -459,12 +461,17 @@ mse.reg.bic <- mean((clas_data_test$y - pred.reg.bic)^2)
 mse.reg.forward <- mean((clas_data_test$y - pred.reg.forward)^2) 
 mse.reg.backward <- mean((clas_data_test$y - pred.reg.backward)^2)
 
-cat("\nRESULTATS SELECTION DE VARIABLES\n")
-cat("MSE Full     : ", mse.reg, ", formule ", "complete", "\n")
-cat("MSE AIC :  ", mse.reg.aic, ", formule ", as.character(aic.formula)[3], "\n")
-cat("MSE BIC      : ", mse.reg.bic, ", formule ", as.character(bic.formula)[3] , "\n")
-cat("MSE Forward  : ", mse.reg.forward,", formule ", "y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50" , "\n")
-cat("MSE Backward : ", mse.reg.backward,", formule ", "y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50" , "\n")
+cat("\n============RESULTATS SELECTION DE VARIABLES============\n")
+cat("\n====Regression logistique avec toutes les variables====\n")
+cat("MSE: ", mse.reg, "\nformule :", "complete", "\n")
+cat("\n====Regression logistique avec selection de variables par AIC====\n")
+cat("MSE: ", mse.reg.aic, "\nformule ", as.character(aic.formula)[3], "\n")
+cat("\n====Regression logistique avec selection de variables par BIC====\n")
+cat("MSE : ", mse.reg.bic, "\nformule ", as.character(bic.formula)[3] , "\n")
+cat("\n====Regression logistique avec selection de variables par méthode forward====\n")
+cat("MSE : ", mse.reg.forward,"\nformule ", as.character(forward.formula)[3] , "\n")
+cat("\n====Regression logistique avec selection de variables par méthode backward====\n")
+cat("MSE : ", mse.reg.backward,"\nformule ", as.character(backward.formula)[3] , "\n")
 
 ```
 
