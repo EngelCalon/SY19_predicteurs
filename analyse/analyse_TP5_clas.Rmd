@@ -392,3 +392,81 @@ LDA/QDA supposent :
 * homogénéité des variances,
 * matrices de covariance bien conditionnées
 Ici, les variables n'ont pas les mêmes variances, il y a des valeurs atypiques et, de plus, QDA doit estimer 3 matrices de covariance complètes 50×50 avec relativement peu de données => pas stable
+
+#### Selection de variables
+Création d'un jeu d'entrainement pour la sélection de variables
+```{r}
+set.seed(42)
+train_size <- floor(0.7 * nrow(clas_data))
+train_indices <- sample(seq_len(nrow(clas_data)), size = train_size)
+clas_data_train <- clas_data[train_indices, ]
+clas_data_test  <- clas_data[-train_indices, ]
+```
+##### Méthode forward
+```{r}
+library('leaps')
+reg.forward <- regsubsets(y ~ . , data = clas_data, method = 'forward')
+plot(reg.forward, scale = "r2", main = "Sélection — forward (R2)")
+```
+y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50
+
+##### Méthode backward
+```{r}
+library('leaps')
+reg.backward <- regsubsets(y ~ . , data = clas_data, method = 'backward')
+plot(reg.backward, scale = "r2", main = "Sélection — backward (R2)")
+```
+y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50
+
+##### AIC
+```{r}
+library(nnet)
+fit <- multinom(y ~ .,data=clas_data)
+sel.aic <- stepAIC(fit,scope=y ~ .,direction="both")
+aic.formula <- formula(sel.aic)
+print(formula(sel.aic))
+```
+y ~ X1 + X5 + X9 + X29 + X33 + X34 + X35 + X36 + X41 + X43 + X46 + X47 + X50
+```{r}
+library(nnet)
+fit <- multinom(y ~ .,data=clas_data)
+sel.bic <- stepAIC(fit,scope=y ~ .,direction="both",
+k=log(nrow(clas_data)))
+bic.formula <- formula(sel.bic)
+print(formula(sel.bic))
+```
+y ~ X9 + X29 + X47
+
+##### Valider les sélections 
+```{r}
+library(nnet)
+model.reg <- multinom(y ~ ., data=clas_data_train)
+model.reg.aic <- multinom(aic.formula, data=clas_data_train)
+model.reg.bic <- multinom(bic.formula, data=clas_data_train)
+model.reg.forward <- multinom(y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50, data=clas_data_train)
+model.reg.backward <- multinom(y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50, data=clas_data_train)
+
+pred.reg <- predict(model.reg, newdata=clas_data_test, type="response")
+pred.reg.aic <- predict(model.reg.aic, newdata=clas_data_test, type="response")
+pred.reg.bic <- predict(model.reg.bic, newdata=clas_data_test, type="response")
+pred.reg.forward <- predict(model.reg.forward, newdata=clas_data_test, type="response")
+pred.reg.backward <- predict(model.reg.backward, newdata=clas_data_test, type="response")
+
+# Calcul du MSE
+mse.reg <- mean((clas_data_test$y - pred.reg)^2)
+mse.reg.aic <- mean((clas_data_test$y - pred.reg.aic)^2)
+mse.reg.bic <- mean((clas_data_test$y - pred.reg.bic)^2)
+mse.reg.forward <- mean((clas_data_test$y - pred.reg.forward)^2) 
+mse.reg.backward <- mean((clas_data_test$y - pred.reg.backward)^2)
+
+cat("\nRESULTATS SELECTION DE VARIABLES\n")
+cat("MSE Full     : ", mse.reg, ", formule ", "complete", "\n")
+cat("MSE AIC :  ", mse.reg.aic, ", formule ", as.character(aic.formula)[3], "\n")
+cat("MSE BIC      : ", mse.reg.bic, ", formule ", as.character(bic.formula)[3] , "\n")
+cat("MSE Forward  : ", mse.reg.forward,", formule ", "y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50" , "\n")
+cat("MSE Backward : ", mse.reg.backward,", formule ", "y ~ X1 + X5 + X9 + X29 + X36 + X46 + X47 + X50" , "\n")
+
+```
+
+
+

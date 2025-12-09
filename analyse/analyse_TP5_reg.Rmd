@@ -291,6 +291,94 @@ Les variables ne sont **pas corrélées** entre elles =\> aucune colinéarité, 
 
 Par ailleurs, la plupart des variables explicatives ont peu ou pas de relation linéaire forte avec la variable cible y =\> **aucune relation linéaire marquée entre une seule variable et y**
 
+#### Selection de variables
+Création d'un jeu d'entrainement pour la sélection de variables
+```{r}
+set.seed(42)
+train_size <- floor(0.7 * nrow(reg_data))
+train_indices <- sample(seq_len(nrow(reg_data)), size = train_size)
+reg_data_train <- reg_data[train_indices, ]
+reg_data_test  <- reg_data[-train_indices, ]
+```
+##### Méthode forward
+```{r}
+library('leaps')
+reg.forward <- regsubsets(y ~ . , data = reg_data, method = 'forward')
+plot(reg.forward, scale = "r2", main = "Sélection — forward (R2)")
+```
+y ~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91
+
+##### Méthode backward
+```{r}
+library('leaps')
+reg.backward <- regsubsets(y ~ . , data = reg_data, method = 'backward')
+plot(reg.backward, scale = "r2", main = "Sélection — backward (R2)")
+```
+y ~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91
+
+##### AIC
+```{r}
+library(MASS)
+fit <- glm(y ~ .,data=reg_data, family = "gaussian")
+sel.aic <- stepAIC(fit,scope=y ~ .,direction="both")
+aic.formula <- formula(sel.aic)
+print(formula(sel.aic))
+```
+y ~ X2 + X3 + X6 + X7 + X8 + X11 + X12 + X14 + X16 + X17 + X18 +
+    X19 + X20 + X21 + X22 + X23 + X25 + X27 + X29 + X31 + X33 +
+    X34 + X35 + X36 + X37 + X40 + X41 + X42 + X43 + X44 + X45 +
+    X46 + X49 + X50 + X52 + X56 + X57 + X58 + X60 + X62 + X64 +
+    X68 + X71 + X72 + X73 + X74 + X75 + X77 + X78 + X79 + X80 +
+    X81 + X82 + X84 + X85 + X86 + X90 + X91 + X93 + X94 + X96 +
+    X97 + X98 + X99 + X100
+```{r}
+library(MASS)
+fit <- glm(y ~ .,data=reg_data, family = "gaussian")
+sel.bic <- stepAIC(fit,scope=y ~ .,direction="both",
+k=log(nrow(reg_data)))
+bic.formula <- formula(sel.bic)
+print(formula(sel.bic))
+```
+y ~ X2 + X3 + X6 + X7 + X8 + X11 + X12 + X16 + X17 + X18 + X19 +
+    X20 + X21 + X22 + X25 + X33 + X34 + X35 + X36 + X37 + X40 +
+    X41 + X42 + X43 + X44 + X45 + X46 + X49 + X50 + X52 + X56 +
+    X57 + X58 + X62 + X71 + X72 + X73 + X74 + X75 + X79 + X80 +
+    X81 + X84 + X85 + X86 + X90 + X91 + X93 + X94 + X96 + X98
+
+##### Valider les sélections 
+```{r}
+library(MASS)
+model.reg <- glm(y ~ ., data=reg_data_train, family="gaussian")
+model.reg.aic <- glm(aic.formula, data=reg_data_train, family="gaussian")
+model.reg.bic <- glm(bic.formula, data=reg_data_train, family="gaussian")
+model.reg.forward <- glm(y ~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91, data=reg_data_train, family="gaussian")
+model.reg.backward <- glm(y ~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91, data=reg_data_train, family="gaussian")
+
+pred.reg <- predict(model.reg, newdata=reg_data_test, type="response")
+pred.reg.aic <- predict(model.reg.aic, newdata=reg_data_test, type="response")
+pred.reg.bic <- predict(model.reg.bic, newdata=reg_data_test, type="response")
+pred.reg.forward <- predict(model.reg.forward, newdata=reg_data_test, type="response")
+pred.reg.backward <- predict(model.reg.backward, newdata=reg_data_test, type="response")
+
+# Calcul du MSE
+mse.reg <- mean((reg_data_test$y - pred.reg)^2)
+mse.reg.aic <- mean((reg_data_test$y - pred.reg.aic)^2)
+mse.reg.bic <- mean((reg_data_test$y - pred.reg.bic)^2)
+mse.reg.forward <- mean((reg_data_test$y - pred.reg.forward)^2) 
+mse.reg.backward <- mean((reg_data_test$y - pred.reg.backward)^2)
+
+cat("\nRESULTATS SELECTION DE VARIABLES\n")
+cat("MSE Full     : ", mse.reg, ", formule ", "complete", "\n")
+cat("MSE AIC :  ", mse.reg.aic, ", formule ", as.character(aic.formula)[3], "\n")
+cat("MSE BIC      : ", mse.reg.bic, ", formule ", as.character(bic.formula)[3] , "\n")
+cat("MSE Forward  : ", mse.reg.forward,", formule ", "y ~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91" , "\n")
+cat("MSE Backward : ", mse.reg.backward,", formule ", "y ~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91" , "\n")
+
+plot(reg_data_test$y)
+plot(pred.reg.bic)
+
+```
+
 #### Tests de régresseurs
 
 Au vu des données, les deux meilleurs classifieurs devraient être la régression linéaire et LASSO.
