@@ -58,8 +58,8 @@ cv.out<-cv.glmnet(xtrain,ytrain,alpha=1)
 reg <- glmnet(x = xtrain, y = ytrain,lambda=cv.out$lambda.min,alpha=1)
 
 # On stocke la moyenne et l'écart type pour reproduire la standardisation sur le test
-X_mean <- attr(X_reg_scaled, "scaled:center")
-X_sd   <- attr(X_reg_scaled, "scaled:scale")
+X_mean <- attr(xtrain, "scaled:center")
+X_sd   <- attr(xtrain, "scaled:scale")
 
 # Fonction regresseur pour la plateforme
 regresseur <- function(test_set) {
@@ -82,3 +82,4 @@ save(clas, reg, classifieur, regresseur,
 
 cat("Fichier env.Rdata créé avec succès !\n")
 cat("Contenu :", ls()[ls() %in% c('clas','reg','classifieur','regresseur','X_mean','X_sd')], "\n")
+
