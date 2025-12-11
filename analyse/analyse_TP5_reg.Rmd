@@ -1466,3 +1466,53 @@ cat("\nmean RMSE", mean(sapply(results, sqrt)))
   
 
 ```
+```{r}
+
+if(!require(here)) install.packages("here")
+library(here)
+library(magrittr)
+library(tidyverse)
+# Chemin vers les données
+data_path <- here("src", "data", "TP5_a25_reg_app.txt")
+data_path2 <- here("src", "data", "TP5_a25_clas_app.txt")
+
+# 1. Apprentissage des modèles.
+library(MASS)
+# Lecture des données
+reg_data <- read.table(
+  data_path,
+  header = TRUE,
+  sep = " ",
+  quote = "\"",
+  stringsAsFactors = FALSE
+)
+#Formule de AIC
+fit <- lm(y ~ ., data=reg_data)
+sel.aic <- stepAIC(fit,scope=y ~ .,direction="both", trace=FALSE)
+formula <- formula(sel.aic)
+reg <- lm(formula, data = reg_data)
+
+X.clas = read.table("a25_clas_app.txt")
+clas <- lda(y ~ ., data = X.clas)
+
+# 2. Création des fonctions de prédiction
+
+classifieur <- function(test_set) {
+# Ne pas oublier de charger **à l'intérieur de la fonction** les
+# bibliothèques utilisées.
+library(MASS)
+# Attention à ce que retourne un modèle en prédiction. La lda
+# retourne une liste nommée. On sélectionne donc les classes ici.
+predict(clas, test_set)$class
+}
+regresseur <- function(test_set) {
+  library(MASS)
+  predict(reg, test_set)
+}
+# 3. Sauvegarder sous forme de fichier .Rdata les fonctions
+# `classifieur` et `regresseur` sans changer leur nom et avec
+# les mêmes arguments. Sauvegarder également les objets utilisés dans
+# ces fonctions (`clas` et `reg` dans l'exemple) !
+save("clas", "reg", "classifieur", "regresseur", file = "env.Rdata")
+```
+

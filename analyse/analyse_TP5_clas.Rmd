@@ -475,5 +475,240 @@ cat("MSE : ", mse.reg.backward,"\nformule ", as.character(backward.formula)[3] ,
 
 ```
 
+# Random Forest
+Il semble que les variables possèdent beaucoup de bruit, nous allons essayer un modèle moins sensible
+```{r}
+library(randomForest)
+library(dplyr)
+
+# y as factor
+clas_data$y <- factor(clas_data$y)
+
+# Retirer les X de 1 à 20
+clas_data_reduced <- clas_data %>% select(-paste0("X", 1:20))
+
+k <- 10
+n <- nrow(clas_data)
+folds <- sample(rep(1:k, length.out = n))
+
+rf_acc <- numeric(k)
+rf_acc_reduced <- numeric(k)
+
+for (i in 1:k) {
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:n, test_idx)
+
+  train <- clas_data[train_idx, ]
+  test  <- clas_data[test_idx, ]
+
+  # RF
+  rf_model <- randomForest(y ~ ., data = train, ntree=500)
+  rf_pred <- predict(rf_model, test,type="response")
+
+  # Accuracy
+  rf_acc[i] <- mean(rf_pred == test$y)
+  
+  
+  # reduced
+  train_reduced <- clas_data_reduced[train_idx, ]
+  test_reduced  <- clas_data_reduced[test_idx, ]
+
+  # RF
+  rf_model_reduced <- randomForest(y ~ ., data = train_reduced, ntree=500)
+  rf_pred_reduced <- predict(rf_model_reduced, test_reduced,type="response")
+
+  # Accuracy
+  rf_acc_reduced[i] <- mean(rf_pred_reduced == test_reduced$y)
+}
+
+cat("\nRESULTATS RF\n")
+cat("Accuracies par fold : ", rf_acc, "\n")
+cat("Moyenne accuracy    : ", mean(rf_acc), "\n")
+cat("Écart-type accuracy : ", sd(rf_acc), "\n")
+
+cat("\nRESULTATS RF reduced\n")
+cat("Accuracies par fold : ", rf_acc_reduced, "\n")
+cat("Moyenne accuracy    : ", mean(rf_acc_reduced), "\n")
+cat("Écart-type accuracy : ", sd(rf_acc_reduced), "\n")
+
+```
 
 
+# Random Forest en pondérant les classes
+La classe 1 est sous représentée, nous allons la pondérée 2 fois plus
+
+```{r}
+library(randomForest)
+library(dplyr)
+freq <- table(train$y)
+class_weights <- as.list(1 / freq)
+
+# y as factor
+clas_data$y <- factor(clas_data$y)
+
+# Retirer les X de 1 à 20
+clas_data_reduced <- clas_data %>%
+  select(-paste0("X", 1:20))
+
+k <- 10
+n <- nrow(clas_data)
+folds <- sample(rep(1:k, length.out = n))
+
+rf_acc <- numeric(k)
+rf_acc_reduced <- numeric(k)
+
+for (i in 1:k) {
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:n, test_idx)
+
+  train <- clas_data[train_idx, ]
+  test  <- clas_data[test_idx, ]
+
+  # RF
+  rf_model <- randomForest(y ~ ., data = train,  classwt = class_weights)
+  rf_pred <- predict(rf_model, test,type="response")
+
+  # Accuracy
+  rf_acc[i] <- mean(rf_pred == test$y)
+  
+  
+  # reduced
+  train_reduced <- clas_data_reduced[train_idx, ]
+  test_reduced  <- clas_data_reduced[test_idx, ]
+
+  # RF
+  rf_model_reduced <- randomForest(y ~ ., data = train_reduced,  classwt = class_weights)
+  rf_pred_reduced <- predict(rf_model_reduced, test_reduced,type="response")
+
+  # Accuracy
+  rf_acc_reduced[i] <- mean(rf_pred_reduced == test_reduced$y)
+}
+
+cat("\nRESULTATS RF\n")
+cat("Accuracies par fold : ", rf_acc, "\n")
+cat("Moyenne accuracy    : ", mean(rf_acc), "\n")
+cat("Écart-type accuracy : ", sd(rf_acc), "\n")
+
+cat("\nRESULTATS RF reduced\n")
+cat("Accuracies par fold : ", rf_acc_reduced, "\n")
+cat("Moyenne accuracy    : ", mean(rf_acc_reduced), "\n")
+cat("Écart-type accuracy : ", sd(rf_acc_reduced), "\n")
+
+```
+Les random forests obtiennent des résultats légèrement moins bon malgré les changements dans ntree.
+
+# Test d'un SVM avec standardisation
+
+```{r}
+library(MASS)
+
+# y as factor
+clas_data$y <- factor(clas_data$y)
+
+k <- 10
+n <- nrow(clas_data)
+folds <- sample(rep(1:k, length.out = n))
+
+svm_acc <- numeric(k)
+
+for (i in 1:k) {
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:n, test_idx)
+
+  train <- clas_data[train_idx, ]
+  test  <- clas_data[test_idx, ]
+
+  # Standardisation 
+  x_train <- train[, 1:50]
+  x_test  <- test[, 1:50]
+
+  means <- apply(x_train, 2, mean)
+  sds   <- apply(x_train, 2, sd)
+
+  x_train_sc <- scale(x_train, center = means, scale = sds)
+  x_test_sc  <- scale(x_test,  center = means, scale = sds)
+
+  train_sc <- data.frame(x_train_sc, y = train$y)
+  test_sc  <- data.frame(x_test_sc,  y = test$y)
+
+  # LDA
+  svm_model <- lda(y ~ ., data = train_sc, kernel = "radial", probability = TRUE)
+  svm_pred  <- predict(svm_model, test_sc)$class
+
+  # Accuracy
+  svm_acc[i] <- mean(svm_pred == test_sc$y)
+}
+
+cat("\nRESULTATS SVM\n")
+cat("Accuracies par fold : ", svm_acc, "\n")
+cat("Moyenne accuracy    : ", mean(svm_acc), "\n")
+cat("Écart-type accuracy : ", sd(svm_acc), "\n")
+```
+# Test d'un SVM avec standardisation + PCA
+```{r}
+library(MASS)
+library(caret)
+
+# y as factor
+clas_data$y <- factor(clas_data$y)
+
+k <- 10
+n <- nrow(clas_data)
+folds <- sample(rep(1:k, length.out = n))
+
+svm_acc <- numeric(k)
+
+for (i in 1:k) {
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:n, test_idx)
+
+  train <- clas_data[train_idx, ]
+  test  <- clas_data[test_idx, ]
+
+  # Standardisation 
+  x_train <- train[, 1:50]
+  x_test  <- test[, 1:50]
+
+  means <- apply(x_train, 2, mean)
+  sds   <- apply(x_train, 2, sd)
+
+  x_train_sc <- scale(x_train, center = means, scale = sds)
+  x_test_sc  <- scale(x_test,  center = means, scale = sds)
+
+  train_sc <- data.frame(x_train_sc, y = train$y)
+  test_sc  <- data.frame(x_test_sc,  y = test$y)
+  
+  #PCA
+  pca <- prcomp(train_sc[, num_vars], center = FALSE, scale. = FALSE)
+
+  # choisir les composants principaux qui expliquent 95% de la variance
+  cumvar <- cumsum(pca$sdev^2 / sum(pca$sdev^2))
+  num_pc <- which(cumvar >= 0.95)[1]
+
+  # transformer train et test
+  train_pca <- as.data.frame(predict(pca, train_sc[, num_vars])[, 1:num_pc])
+  train_pca$y <- train_sc$y
+  test_pca <- as.data.frame(predict(pca, test_sc[, num_vars])[, 1:num_pc])
+  test_pca$y <- test_sc$y
+
+  # LDA
+  svm_model <- lda(y ~ ., data = train_pca, kernel = "radial", probability = TRUE)
+  svm_pred  <- predict(svm_model, test_pca)$class
+
+  # Accuracy
+  svm_acc[i] <- mean(svm_pred == test_pca$y)
+}
+
+cat("\nRESULTATS SVM\n")
+cat("Accuracies par fold : ", svm_acc, "\n")
+cat("Moyenne accuracy    : ", mean(svm_acc), "\n")
+cat("Écart-type accuracy : ", sd(svm_acc), "\n")
+```
+
+Standadisation scale+ PCA (sauf forest et boosting)
+SVM RBF apres standardisation
+means <- apply(x_train, 2, mean)
+sds   <- apply(x_train, 2, sd)
+
+
+x_train_sc <- scale(x_train, center = means, scale = sds)
