@@ -1,8 +1,0 @@
----
-title: "Regression Clean Engel"
-output: html_notebook
----
-
-# Classification Clean Engel
-
-## Chargement du jeu de données

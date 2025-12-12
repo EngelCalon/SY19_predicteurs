@@ -371,7 +371,7 @@ for (var in num_vars) {
 #### Analyse bivariée
 ```{r}
 library(ggplot2)
-
+library(gridExtra)
 num_vars <- clas_data %>% select(age, creatinine_phosphokinase, ejection_fraction,
                           platelets, serum_creatinine, serum_sodium, time)
 
@@ -591,4 +591,5 @@ res_df <- rbind(
 )
 
 print(res_df)
+
 ```

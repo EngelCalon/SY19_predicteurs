@@ -15,19 +15,17 @@ Dans chaque cas, il faudra, en utilisant les méthodes vues en cours de **SY19**
 SY19_predicteurs/
 
 │
-
-├── src/                      # Tout le code source
-
-│   ├── const/                # Contient les constantes du projet
-
+├── src/                     
+│   ├── data/                 # Contient les datasets
 │
-
-├── data/                     # Données du projet
-
+├── analyse/                  # fichiers d'analyse et de tests
 │
-
 ├── docs/                     # Documentation et rapports/soutenances. Contient les attendus du projet
-
+|
+├── env_maker/                # Contient les versions des créateurs d'environnements testés pour le site de test de l'UV.
+|
+├── tests/                    # tous les fichiers sources de tests intermédiaires.
+|
 └── README.md                 # You are here 📌
 
 ---

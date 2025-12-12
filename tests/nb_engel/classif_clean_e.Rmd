@@ -1,0 +1,218 @@
+---
+title: "Classification Clean Engel"
+output: html_notebook
+---
+
+# Classification Clean Engel
+
+## Chargement du jeu de données
+
+```{r}
+df.classif <- read.table("D:/OneDrive/Documents/Travail/SY19/SY19_predicteurs/src/data/TP5_a25_clas_app.txt")
+
+set.seed(342)
+df.shuffled <- df.classif[sample(nrow(df.classif)), ]
+
+# Séparation en un jeu d'entraînement et un jeu de test
+part.train <- 70/100
+n <- nrow(df.shuffled)
+n.train <- round(part.train * n)
+df.train <- df.shuffled[1:n.train, ]
+df.test <- df.shuffled[(n.train + 1):n, ]
+
+# Séparation des prédicteurs et de la variable cible pour certains modèles
+X.train <- df.train[, names(df.train) != "y"]
+y.train <- df.train$y
+X.test <- df.test[, names(df.test) != "y"]
+y.test <- df.test$y
+
+head(df.shuffled )
+```
+
+## Fonction de validation croisée
+```{r}
+get_folds <- function(data, folds = 5, seed = 123) {
+  set.seed(seed)
+  n <- nrow(data)
+  data_shuff <- data[sample(n), ]
+
+  fold_size <- floor(n / folds)
+  folds_list <- list()
+
+  for (i in 1:folds) {
+    start <- (i - 1) * fold_size + 1
+    end <- if (i == folds) n else i * fold_size
+    folds_list[[i]] <- data_shuff[start:end, ]
+}
+
+  return(folds_list)
+}
+
+nested_cv <- function(
+  data,
+  outer_folds = 5,
+  inner_folds = 5,
+  model_function,
+  predict_function,
+  score_function_list,
+  hyper_grid,
+  should_min_or_max
+){
+  # créer les plis externes
+  outer_folds_list <- get_folds(data, outer_folds, 342)
+
+    # résultats externes
+    metric_names <- names(score_function_list)
+    hyper_names <- colnames(hyper_grid)
+    # créer un data.frame vide avec colonnes hyperparamètres + metrics
+    results_outer <- data.frame(matrix(NA, nrow = outer_folds, ncol = length(hyper_names) + length(metric_names) + 1))
+    # nommer les colonnes
+    colnames(results_outer) <- c("fold", hyper_names, metric_names)
+
+    # remplir la colonne fold
+    results_outer$fold <- 1:outer_folds
+
+  
+  #Boucle externe
+  for(i in 1:outer_folds){
+    # Division du jeu de données externe
+    test_outer <- outer_folds_list[[i]]
+    train_outer <- do.call(rbind, outer_folds_list[-i])
+    
+    # créer les plis internes
+    inner_folds_list <- get_folds(train_outer, inner_folds, 322 + i)
+
+    # stocker le score moyen de chaque hyperparamètre
+    hyper_scores <- data.frame(
+      hyper_grid,
+      matrix(NA, nrow = nrow(hyper_grid), ncol = length(metric_names))
+    )
+    
+    #Boucler pour tester les paramètres choisis
+    for(p in 1:nrow(hyper_grid)){
+      param <- hyper_grid[p, ]
+      inner_scores <- as.data.frame(matrix(
+        NA,
+        nrow = inner_folds,
+        ncol = length(metric_names),
+        dimnames = list(NULL, metric_names)
+      ))
+
+      #Boucle interne
+      for(j in 1:inner_folds){
+        test_inner <- inner_folds_list[[j]]
+        train_inner <- do.call(rbind, inner_folds_list[-j])
+
+        # entraîner le modèle avec l'hyperparamètre
+        model <- model_function(train_inner, param)
+
+        # prédictions sur le pli interne
+        pred <- predict_function(model, test_inner)
+
+        for(metric in metric_names){
+          inner_scores[[metric]][j] <- score_function_list[[metric]](pred, test_inner$y)
+        }
+
+      }
+
+      # score moyen sur tous les plis internes pour ce paramètre pour chaque métrique
+        for(metric in metric_names){
+            hyper_scores[[metric]][p] <- mean(inner_scores[[metric]])
+        }
+      
+    }
+
+    # Choix des meilleurs hyperparamètres 
+    candidate_indices <- sapply(metric_names, function(metric) {
+        min_or_max <- should_min_or_max[[metric]]
+        if (min_or_max == "max") {
+            which.max(hyper_scores[[metric]])
+        } else {
+            which.min(hyper_scores[[metric]])
+        }
+    })
+    #Vote majoritaire
+    vote_table <- table(candidate_indices)
+    best_index <- as.numeric(names(vote_table)[which.max(vote_table)])
+    best_param <- hyper_grid[best_index, ]
+
+    # entraîner sur tout train_outer avec le meilleur hyperparamètre
+    final_model <- model_function(train_outer, best_param)
+
+    # prédiction sur le pli externe
+    pred_outer <- predict_function(final_model, test_outer)
+
+    # Scores externes
+    for(metric in metric_names){
+      results_outer[i, metric] <- score_function_list[[metric]](pred_outer, test_outer$y)
+    }
+
+    # stocker les résultats
+    results_outer[i, hyper_names] <- best_param
+    for(metric in metric_names){
+      results_outer[i, metric] <- score_function_list[[metric]](pred_outer, test_outer$y)
+    }
+  }
+
+  return(results_outer)
+}
+```
+
+## Test sur plusieurs modèles
+### Modèle 1 : SVM
+```{r}
+library(e1071)
+library(caret)  # pour confusionMatrix et F1
+
+# Fonction pour entraîner le modèle SVM
+model_function <- function(train_data, param){
+  # param doit contenir e.g. param$cost et param$gamma
+  svm(y ~ ., data = train_data, cost = param$cost, gamma = param$gamma, kernel = "radial")
+}
+
+# Fonction pour prédire
+predict_function <- function(model, test_data){
+  predict(model, test_data)
+}
+
+# Fonctions de scoring
+score_function_list <- list(
+  accuracy = function(pred, y_true){
+    mean(pred == y_true)
+  }
+)
+
+# Grille d'hyperparamètres
+hyper_grid <- expand.grid(
+  cost = c(1, 10, 100),
+  gamma = c(0.1, 0.5, 1, 5, 10, 50),
+  kernel = c("radial", "linear", "polynomial", "sigma", "radial basis", "sigmoid"),
+  degree = c(3, 4, 5),
+  epsilon = c(0.1, 0.2, 0.3, 0.4, 0.5)
+
+)
+
+should_min_or_max <- list(
+  accuracy = "max"
+)
+
+# Exécution du nested CV
+svm_results <- nested_cv(
+    data = df.shuffled,
+    outer_folds = 5,
+    inner_folds = 5,
+    model_function = model_function,
+    predict_function = predict_function,
+    score_function_list = score_function_list,
+    hyper_grid = hyper_grid,
+    should_min_or_max = should_min_or_max
+)
+
+print(svm_results)
+```
+
+### Modèle 2 : Arbres
+```{r}
+
+```
+
