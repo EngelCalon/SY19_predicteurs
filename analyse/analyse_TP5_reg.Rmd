@@ -199,7 +199,7 @@ library(ggplot2)
 
 vars_cont <- colnames(reg_data)[1:100]
 
-reg_data_long <- reg_data %>% select(all_of(vars_cont)) %>% pivot_longer(cols = everything(), names_to = "variable", values_to = "valeur")
+reg_data_long <- reg_data %>% dplyr::select(all_of(vars_cont)) %>% pivot_longer(cols = everything(), names_to = "variable", values_to = "valeur")
 
 ggplot(reg_data_long, aes(x = variable, y = valeur)) +
   geom_boxplot(outlier.color = "red", fill = "steelblue", alpha = 0.6) +
@@ -277,7 +277,7 @@ corrplot(cor_mat, method = "color", type = "upper", tl.cex = 0.7,
          title = "Matrice de corrélation entre variables")
 
 # Corrélation de chaque variable avec y
-cor_y <- cor(reg_data %>% select(-y), reg_data$y)
+cor_y <- cor(reg_data %>% dplyr::select(-y), reg_data$y)
 cor_y <- sort(cor_y, decreasing = TRUE)
 print(cor_y)
 
@@ -292,7 +292,9 @@ Les variables ne sont **pas corrélées** entre elles =\> aucune colinéarité, 
 Par ailleurs, la plupart des variables explicatives ont peu ou pas de relation linéaire forte avec la variable cible y =\> **aucune relation linéaire marquée entre une seule variable et y**
 
 #### Selection de variables
+
 Création d'un jeu d'entrainement pour la sélection de variables
+
 ```{r}
 set.seed(42)
 train_size <- floor(0.7 * nrow(reg_data))
@@ -300,25 +302,31 @@ train_indices <- sample(seq_len(nrow(reg_data)), size = train_size)
 reg_data_train <- reg_data[train_indices, ]
 reg_data_test  <- reg_data[-train_indices, ]
 ```
+
 ##### Méthode forward
+
 ```{r}
 library('leaps')
 reg.forward <- regsubsets(y ~ . , data = reg_data, method = 'forward')
 plot(reg.forward, scale = "r2", main = "Sélection — forward (R2)")
 forward.formula <- y ~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91
 ```
-y ~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91
+
+y \~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91
 
 ##### Méthode backward
+
 ```{r}
 library('leaps')
 reg.backward <- regsubsets(y ~ . , data = reg_data, method = 'backward')
 plot(reg.backward, scale = "r2", main = "Sélection — backward (R2)")
 backward.formula <- y ~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91
 ```
-y ~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91
+
+y \~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91
 
 ##### AIC
+
 ```{r}
 library(MASS)
 fit <- glm(y ~ .,data=reg_data, family = "gaussian")
@@ -326,6 +334,7 @@ sel.aic <- stepAIC(fit,scope=y ~ .,direction="both", trace=FALSE)
 aic.formula <- formula(sel.aic)
 print(formula(sel.aic))
 ```
+
 ```{r}
 library(MASS)
 fit <- glm(y ~ .,data=reg_data, family = "gaussian")
@@ -335,7 +344,8 @@ bic.formula <- formula(sel.bic)
 print(formula(sel.bic))
 ```
 
-##### Valider les sélections 
+##### Valider les sélections
+
 ```{r}
 library(MASS)
 model.reg <- glm(y ~ ., data=reg_data_train, family="gaussian")
@@ -370,9 +380,8 @@ cat("\n====Regression logistique avec selection de variables par méthode backwa
 cat("MSE : ", mse.reg.backward,"RMSE", sqrt(mse.reg.backward), "\nformule ", "y ~ X6 + X8 + X42 + X45 + X79 + X84 + X86 + X91" , "\n")
 
 ```
-Les différentes méthodes de sélection de variables ont produit des résultats contrastés.
-Le modèle de régression logistique complet présente une MSE relativement élevée, ce qui suggère un overfitting ou en tout cas une instabilité dans les prédictions.
-Les méthodes basées sur les critères AIC et BIC améliorent nettement la performance : l’AIC obtient la meilleure MSE, grâce à une pénalisation plus faible qui permet de conserver davantage de variables pertinentes, tandis que le BIC, plus strict, sélectionne un modèle légèrement plus simple au prix d’une MSE un peu supérieure.
+
+Les différentes méthodes de sélection de variables ont produit des résultats contrastés. Le modèle de régression logistique complet présente une MSE relativement élevée, ce qui suggère un overfitting ou en tout cas une instabilité dans les prédictions. Les méthodes basées sur les critères AIC et BIC améliorent nettement la performance : l’AIC obtient la meilleure MSE, grâce à une pénalisation plus faible qui permet de conserver davantage de variables pertinentes, tandis que le BIC, plus strict, sélectionne un modèle légèrement plus simple au prix d’une MSE un peu supérieure.
 
 À l’inverse, les méthodes stepwise forward et backward conduisent toutes deux à une MSE extrêmement élevée. Cela indique un sous-ajustement important : le nombre de variables retenues est trop faible pour capturer correctement la structure du problème, ce qui dégrade fortement la qualité des prédictions. Ces approches apparaissent donc inadaptées dans ce contexte.
 
@@ -480,8 +489,7 @@ cat("\nRMSE", rmse_lasso)
 ```
 
 LASSO utilise globalement toutes les variables (sauf X1, X4, X28, X54, X63, X65, X66, X69, X86).\
-R² = 0.9737215
-RMSE 10.06987, ce qui est plus faible que la régression linéaire avec AIC
+R² = 0.9737215 RMSE 10.06987, ce qui est plus faible que la régression linéaire avec AIC
 
 ##### Comparaison de tous les modèles de régression
 
@@ -519,8 +527,8 @@ mse_fold <- function(y_true, y_pred) {
 
 # Stockage des RMSE
 results <- list(LM = numeric(k),
-                LM_AIC = numeric(k),
-                LM_BIC = numeric(k),
+                #LM_AIC = numeric(k),
+                #LM_BIC = numeric(k),
                 Ridge = numeric(k),
                 Lasso = numeric(k),
                 RF = numeric(k),
@@ -553,23 +561,23 @@ for (i in 1:k) {
   results$LM[i] <- mse_fold(y_test, pred_lm)
   
   #avec AIC
-  lm_mod_aic <- lm(aic.formula, data = train_df)
-  pred_lm_aic <- predict(lm_mod_aic, newdata = test_df)
+  #lm_mod_aic <- lm(aic.formula, data = train_df)
+  #pred_lm_aic <- predict(lm_mod_aic, newdata = test_df)
   #results$LM_AIC[i] <- rmse_fold(y_test, pred_lm_aic)
-  results$LM_AIC[i] <- mse_fold(y_test, pred_lm_aic)
+  #results$LM_AIC[i] <- mse_fold(y_test, pred_lm_aic)
   
   #avec BIC
-  lm_mod_bic <- lm(bic.formula, data = train_df)
-  pred_lm_bic <- predict(lm_mod_bic, newdata = test_df)
+  #lm_mod_bic <- lm(bic.formula, data = train_df)
+  #pred_lm_bic <- predict(lm_mod_bic, newdata = test_df)
   #results$LM_BIC[i] <- rmse_fold(y_test, pred_lm_bic)
-  results$LM_BIC[i] <- mse_fold(y_test, pred_lm_bic)
+  #results$LM_BIC[i] <- mse_fold(y_test, pred_lm_bic)
   
   
   # Splines + GAM
-  splgam_mod <- autogam(data=train_df,y_col="y")
-  pred_splgam <- predict(splgam_mod, test_df, type = "response")
+  #splgam_mod <- autogam(data=train_df,y_col="y")
+  #pred_splgam <- predict(splgam_mod, test_df, type = "response")
   #results$SPLGAM[i] <- rmse_fold(y_test, pred_splgam)
-  results$SPLGAM[i] <- mse_fold(y_test, pred_splgam)
+  #results$SPLGAM[i] <- mse_fold(y_test, pred_splgam)
   
   # Ridge
   ridge_mod <- cv.glmnet(X_train, y_train, alpha = 0, nfolds = 5)
@@ -639,11 +647,11 @@ library(splines)
 library(mgcv)
 library(autogam)
 library(rpart)
-
+library(tidyverse)
 set.seed(123)
 
 # Préparation des données
-X <- reg_data %>% select(-y) %>% as.matrix()
+X <- reg_data %>% dplyr::select(-y) %>% as.matrix()
 y <- reg_data$y
 
 # Standardisation pour modèles linéaires régularisés
@@ -756,10 +764,10 @@ best_model <- res_df$Model[which.min(res_df$MSE_Mean)]
 cat("\nMeilleur modèle selon MSE moyen :", best_model, "\n")
 ```
 
-utiliser lasso avec x et x^2 pour identifier les carrés d'intérêt puis mélange => Camille
-regarder tous les splines appris 1 à 1 => Bastien
+utiliser lasso avec x et x\^2 pour identifier les carrés d'intérêt puis mélange =\> Camille regarder tous les splines appris 1 à 1 =\> Bastien
 
 ##### Test transformations
+
 ```{r}
 library(glmnet)
 library(dplyr)
@@ -767,7 +775,7 @@ library(dplyr)
 set.seed(123)
 
 # Données
-X <- reg_data %>% select(-y) %>% as.matrix()
+X <- reg_data %>% dplyr::select(-y) %>% as.matrix()
 y <- reg_data$y
 X_scaled <- scale(X)
 
@@ -853,14 +861,13 @@ formula_final <- as.formula(
 formula_final
 ```
 
-
 ```{r}
 mod_final_lm <- lm(formula_final, data = df_final)
 summary(mod_final_lm)
 ```
 
 ```{r}
-X_final <- as.matrix(df_final %>% select(-y))
+X_final <- as.matrix(df_final %>% dplyr::select(-y))
 
 mod_final_lasso <- cv.glmnet(X_final, y, alpha = 1)
 
@@ -880,7 +887,7 @@ library(dplyr)
 set.seed(123)
 
 # Données de départ
-X <- reg_data %>% select(-y) %>% as.matrix()
+X <- reg_data %>% dplyr::select(-y) %>% as.matrix()
 y <- reg_data$y
 
 # Standardisation initiale
@@ -947,7 +954,7 @@ for (j in seq_along(varnames)) {
   if (best_transform[v] == "log")
     df_final[[v]] <- X_log[, j]
 }
-X_final <- scale(df_final %>% select(-y))
+X_final <- scale(df_final %>% dplyr::select(-y))
 
 mod_final_lasso <- cv.glmnet(X_final, y, alpha = 1)
 
@@ -979,8 +986,8 @@ summary(mod_refit)
 
 ```
 
-
 ##### Test ajout d'interactions
+
 ```{r}
 library(glmnet)
 library(dplyr)
@@ -988,7 +995,7 @@ library(dplyr)
 set.seed(123)
 
 # Données de départ
-X <- reg_data %>% select(-y) %>% as.matrix()
+X <- reg_data %>% dplyr::select(-y) %>% as.matrix()
 y <- reg_data$y
 
 # Standardisation initiale
@@ -1052,10 +1059,12 @@ coef_selected <- coef(mod_full, s = "lambda.min")
 selected_vars <- rownames(coef_selected)[coef_selected[,1] != 0]
 selected_vars
 
+
+
 ```
 
-
 ##### Comparaison LASSO et Elastic Net
+
 ```{r}
 library(glmnet)
 library(dplyr)
@@ -1063,7 +1072,7 @@ library(dplyr)
 set.seed(123)
 
 # Préparation des données
-X <- reg_data %>% select(-y) %>% as.matrix()
+X <- reg_data %>% dplyr::select(-y) %>% as.matrix()
 y <- reg_data$y
 
 # Standardisation
@@ -1135,8 +1144,8 @@ selected_vars
 
 ```
 
-
 ##### GLMNET avec optimisation du alpha et du lambda
+
 ```{r}
 library(glmnet)
 library(dplyr)
@@ -1144,7 +1153,7 @@ library(dplyr)
 set.seed(123)
 
 # Préparer les données
-X <- reg_data %>% select(-y) %>% as.matrix()
+X <- reg_data %>% dplyr::select(-y) %>% as.matrix()
 y <- reg_data$y
 X_scaled <- scale(X)
 
@@ -1210,6 +1219,7 @@ rmse_cv  <- sqrt(mean_mse)
 cat("MSE CV sur le modèle final :", mean_mse, "\n")
 cat("RMSE CV sur le modèle final :", rmse_cv, "\n")
 ```
+
 ```{r}
 library(glmnet)
 library(dplyr)
@@ -1217,7 +1227,7 @@ library(dplyr)
 # set.seed(123) # seed initial
 
 # Préparer les données
-X <- reg_data %>% select(-y) %>% as.matrix()
+X <- reg_data %>% dplyr::select(-y) %>% as.matrix()
 y <- reg_data$y
 X_scaled <- scale(X)
 
@@ -1292,8 +1302,96 @@ cat("MSE CV final :", mean_mse, "\n")
 cat("RMSE CV final :", rmse_cv, "\n")
 ```
 
+**TEST BAM + SELECTION LASSO**
+
+```{r}
+library(glmnet)
+library(dplyr)
+library(splines)
+library(gam)
+
+#set.seed(123)
+
+# Préparer les données
+X <- reg_data %>% dplyr::select(-y) %>% as.matrix()
+y <- reg_data$y
+X_scaled <- scale(X)
+
+# Grille fine de lambda
+lambda_grid <- 10^seq(-2, 2, length.out = 200)
+
+# Explorer alpha proche de LASSO
+alpha_grid <- seq(0.8, 1, by = 0.02)
+
+best_mse <- Inf
+best_alpha <- NA
+best_lambda <- NA
+best_model <- NULL
+
+for(a in alpha_grid){
+  en_mod <- cv.glmnet(X_scaled, y, alpha = a, nfolds = 10, lambda = lambda_grid)
+  mse <- min(en_mod$cvm)
+  if(mse < best_mse){
+    best_mse <- mse
+    best_alpha <- a
+    best_lambda <- en_mod$lambda.min
+    best_model <- en_mod
+  }
+}
+
+cat("Meilleur alpha :", best_alpha, "\n")
+cat("Lambda correspondant :", best_lambda, "\n")
+cat("MSE CV (d'après cv.glmnet) :", best_mse, "\n\n")
+
+# Variables sélectionnées
+coef_selected <- coef(best_model, s = "lambda.min")
+selected_vars <- rownames(coef_selected)[coef_selected[,1] != 0]
+selected_vars <- selected_vars[selected_vars != "(Intercept)"]
+cat("Variables sélectionnées :", selected_vars, "\n\n")
+
+formula_bam <- paste(selected_vars,collapse=")+s(")
+final_formula <- paste0("y~s(",formula_bam,")")
+cat("Formule finale sélectionnée: ",final_formula)
+
+# Validation croisée manuelle pour MSE réaliste
+k <- 10
+folds <- sample(rep(1:k, length.out = nrow(X_scaled)))
+mse_cv <- numeric(k)
+
+for(i in 1:k){
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:nrow(X_scaled), test_idx)
+  
+  X_train <- X_scaled[train_idx, selected_vars, drop = FALSE]
+  y_train <- y[train_idx]
+  X_test  <- X_scaled[test_idx, selected_vars, drop = FALSE]
+  y_test  <- y[test_idx]
+  
+  train_df <- data.frame(y = y_train, X_train)
+  colnames(train_df)[-1] <- selected_vars
+  
+  test_df <- data.frame(X_test)
+  colnames(test_df) <- selected_vars
+  
+  #fit avec BAM
+  
+  fit.bam<-bam(as.formula(final_formula),family=gaussian(),data=train_df)
+  
+  pred_bam <- predict.bam(fit.bam, newdata=test_df)
+  
+  mse_cv[i] <- mean((y_test - pred_bam)^2)
+}
+
+mean_mse <- mean(mse_cv)
+rmse_cv  <- sqrt(mean_mse)
+
+
+cat("\n\nMSE CV sur le modèle BAM + ALPHA/LAMBDA optis :", mean_mse, "\n")
+cat("\nRMSE CV sur le modèle BAM + ALPHA/LAMBDA optis:", rmse_cv, "\n")
+```
 
 ##### Test de PCR, PLS, Bayesian Ridge et NN
+
 ```{r}
 library(dplyr)
 library(pls)   # PCR et PLS
@@ -1423,7 +1521,9 @@ res_df <- data.frame(
 )
 print(res_df)
 ```
+
 ### Test avec AIC et regression linéaire
+
 ```{r}
 library(MASS)
 
@@ -1466,6 +1566,7 @@ cat("\nmean RMSE", mean(sapply(results, sqrt)))
   
 
 ```
+
 ```{r}
 
 if(!require(here)) install.packages("here")
@@ -1515,4 +1616,3 @@ regresseur <- function(test_set) {
 # ces fonctions (`clas` et `reg` dans l'exemple) !
 save("clas", "reg", "classifieur", "regresseur", file = "env.Rdata")
 ```
-
