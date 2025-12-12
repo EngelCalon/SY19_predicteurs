@@ -57,8 +57,13 @@ svm_model <- svm(y ~ ., data = X_train_scaled_df,
 
 # Fonction classifieur (vote majoritaire QDA + SVM)
 classifieur <- function(test_set) {
+  library(MASS)
+  library(e1071)
+  vars <- paste0("X", 21:50)
+  test_sub <- test_set[, vars, drop = FALSE]
+  
   # Standardisation avec les mêmes paramètres
-  X_test_scaled <- sweep(as.matrix(test_set), 2, X_mean_clas, FUN = "-")
+  X_test_scaled <- sweep(as.matrix(test_sub), 2, X_mean_clas, FUN = "-")
   X_test_scaled <- sweep(X_test_scaled, 2, X_sd_clas,   FUN = "/")
   test_scaled_df <- data.frame(X_test_scaled)
   
@@ -77,40 +82,76 @@ classifieur <- function(test_set) {
 }
 
 # =========================================
-# 3. Préparation régression LASSO simple
+# 3. Préparation régression Elastic Net
 
-ytrain <- X.reg$y
+y_reg <- X.reg$y
 X_reg_df <- X.reg[, setdiff(colnames(X.reg), "y"), drop = FALSE]
 
-# Standardisation
-xtrain <- scale(X_reg_df)
+# Standardisation des données
+X_scaled <- scale(X_reg_df)
+X_mean <- attr(X_scaled, "scaled:center")
+X_sd   <- attr(X_scaled, "scaled:scale")
 
-# On entraîne LASSO sur tout le jeu d'apprentissage
-cv.out<-cv.glmnet(xtrain,ytrain,alpha=1)
-reg <- glmnet(x = xtrain, y = ytrain,lambda=cv.out$lambda.min,alpha=1)
+# Grille fine de lambda et alpha
+lambda_grid <- 10^seq(-2, 2, length.out = 200)
+alpha_grid  <- seq(0.8, 1, by = 0.02)
 
-# On stocke la moyenne et l'écart type pour reproduire la standardisation sur le test
-X_mean <- attr(xtrain, "scaled:center")
-X_sd   <- attr(xtrain, "scaled:scale")
+# Paramètres de repeated CV
+n_repeats <- 20           # nombre de répétitions avec différentes seeds
+seeds <- sample(1:10000, n_repeats) # seeds différentes pour chaque répétition
+
+# Stocker les résultats
+results <- list()
+
+for(a in alpha_grid){
+  mse_seeds <- numeric(n_repeats)
+  
+  for(i in seq_along(seeds)){
+    set.seed(seeds[i])
+    cv_mod <- cv.glmnet(X_scaled, y_reg, alpha = a, nfolds = 10, lambda = lambda_grid)
+    mse_seeds[i] <- min(cv_mod$cvm)
+  }
+  
+  # Moyenne de la MSE sur toutes les seeds
+  results[[as.character(a)]] <- mean(mse_seeds)
+}
+
+# Sélection du meilleur alpha
+best_alpha <- as.numeric(names(results)[which.min(unlist(results))])
+cat("Meilleur alpha moyen sur repeated CV :", best_alpha, "\n")
+best_mse   <- results[[as.character(best_alpha)]]
+cat("MSE CV moyen sur repeated CV :", best_mse, "\n")
+
+# Fit avec alpha optimal pour obtenir le meilleur lambda
+final_cv <- cv.glmnet(X_scaled, y_reg, alpha = best_alpha, nfolds = 10, lambda = lambda_grid)
+best_lambda <- final_cv$lambda.min
+cat("Lambda correspondant au meilleur alpha :", best_lambda, "\n")
+
+# Variables sélectionnées
+coef_selected <- coef(final_cv, s = "lambda.min")
+selected_vars <- rownames(coef_selected)[coef_selected[,1] != 0]
+selected_vars <- selected_vars[selected_vars != "(Intercept)"]
+cat("Variables sélectionnées :", selected_vars, "\n\n")
+
+# Refit final du modèle Elastic Net sur toutes les données
+reg <- glmnet(X_scaled[, selected_vars, drop = FALSE], y_reg, alpha = best_alpha, lambda = best_lambda)
 
 # Fonction regresseur pour la plateforme
 regresseur <- function(test_set) {
   library(glmnet)
-  # Convertir en matrice et standardiser avec les mêmes moyennes/écarts type
-  X_test_mat <- as.matrix(test_set)
-  X_test_scaled <- sweep(X_test_mat, 2, X_mean, FUN = "-")
-  X_test_scaled <- sweep(X_test_scaled, 2, X_sd, FUN = "/")
+  X_test_mat <- as.matrix(test_set[, selected_vars, drop = FALSE])
+  # Standardisation avec les mêmes moyennes et écarts-types
+  X_test_scaled <- sweep(X_test_mat, 2, X_mean[selected_vars], FUN = "-")
+  X_test_scaled <- sweep(X_test_scaled, 2, X_sd[selected_vars], FUN = "/")
   
-  # Prédiction
-  preds <- as.numeric(predict(reg, newx = X_test_scaled, s = cv.out$lambda.min))
+  preds <- as.numeric(predict(reg, newx = X_test_scaled, s = best_lambda))
   return(preds)
 }
 
 # =========================================
-# 4. Sauvegarder l'environnement minimal
-save(qda_model, svm_model, reg, classifieur, regresseur,
-     X_mean, X_sd,X_mean_clas, X_sd_clas,
+# 4. Sauvegarder les objets essentiels
+save(best_alpha, best_lambda, qda_model, svm_model, reg, classifieur, regresseur, X_mean, X_sd, selected_vars, X_mean_clas, X_sd_clas,
      file = "env.Rdata")
 
 cat("Fichier env.Rdata créé avec succès !\n")
-cat("Contenu :", ls()[ls() %in% c('qda_model','svm_model','reg','classifieur','regresseur','X_mean','X_sd')], "\n")
+cat("Contenu :", ls()[ls() %in% c('clas','reg','classifieur','regresseur','X_mean','X_sd','selected_vars', 'best_lambda')], "\n")
