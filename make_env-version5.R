@@ -56,7 +56,7 @@ clas <- qda(y ~ ., data = X_clas_scaled)
 
 # Fonction classifieur pour la plateforme
 classifieur <- function(test_set) {
-  # test_set contient uniquement les X
+  library(MASS)
   
   # Garder X21:X50
   test_sub <- test_set[, paste0("X", 21:50), drop = FALSE]
@@ -118,4 +118,5 @@ save(
 
 cat("Fichier env.Rdata créé avec succès !\n")
 cat("Contenu :", ls()[ls() %in% c('clas','reg','classifieur','regresseur','X_mean','X_sd')], "\n")
+
 
