@@ -1567,52 +1567,244 @@ cat("\nmean RMSE", mean(sapply(results, sqrt)))
 
 ```
 
+### Elastic net
+```{r}
+library(glmnet)
+
+# Préparation des données
+X <- as.matrix(reg_data[, setdiff(names(reg_data), "y")])
+y <- reg_data$y
+X_scaled <- scale(X)
+
+alpha_grid <- c(0.1,0.3,0.5,0.7,0.9)
+alpha_res <- data.frame(alpha = alpha_grid, mse = NA, sd = NA)
+
+mse_fold <- function(y_true, y_pred){
+  mean((y_true - y_pred)^2)
+}
+
+k <- 10
+folds <- sample(rep(1:k, length.out = nrow(df)))
+
+for(j in seq_along(alpha_grid)){
+  
+  a <- alpha_grid[j]
+  fold_mses_res <- numeric(k)
+  
+  for(i in 1:k){
+    train_idx <- which(folds != i)
+    test_idx  <- which(folds == i)
+    
+    X_train <- X_scaled[train_idx, ]
+    y_train <- y[train_idx]
+    X_test <- X_scaled[test_idx, ]
+    y_test <- y[test_idx]
+    
+    el_mod <- cv.glmnet(X_train,y_train, alpha = a, nfolds = 5)
+    
+    pred <- predict (el_mod, newx = X_test, s="lambda.min")
+    results[i] <- mse_fold(test_df$y, pred)
+    fold_mses_res[i] <- mse_fold(y[test_idx], pred)
+  }
+  alpha_res$mse[j] <- mean(fold_mses_res)
+  alpha_res$sd[j]  <- sd(fold_mses_res)
+}
+print(alpha_res)
+best_alpha <- alpha_res$alpha[which.min(alpha_res$mse)]
+cat("Best alpha:", best_alpha, "\n")
+
+```
 ```{r}
 
-if(!require(here)) install.packages("here")
-library(here)
-library(magrittr)
-library(tidyverse)
-# Chemin vers les données
-data_path <- here("src", "data", "TP5_a25_reg_app.txt")
-data_path2 <- here("src", "data", "TP5_a25_clas_app.txt")
+library(mgcv)
 
-# 1. Apprentissage des modèles.
-library(MASS)
-# Lecture des données
-reg_data <- read.table(
-  data_path,
-  header = TRUE,
-  sep = " ",
-  quote = "\"",
-  stringsAsFactors = FALSE
-)
-#Formule de AIC
-fit <- lm(y ~ ., data=reg_data)
-sel.aic <- stepAIC(fit,scope=y ~ .,direction="both", trace=FALSE)
-formula <- formula(sel.aic)
-reg <- lm(formula, data = reg_data)
+# Préparation des données
+X <- as.matrix(reg_data[, setdiff(names(reg_data), "y")])
+y <- reg_data$y
+X_scaled <- scale(X)
 
-X.clas = read.table("a25_clas_app.txt")
-clas <- lda(y ~ ., data = X.clas)
-
-# 2. Création des fonctions de prédiction
-
-classifieur <- function(test_set) {
-# Ne pas oublier de charger **à l'intérieur de la fonction** les
-# bibliothèques utilisées.
-library(MASS)
-# Attention à ce que retourne un modèle en prédiction. La lda
-# retourne une liste nommée. On sélectionne donc les classes ici.
-predict(clas, test_set)$class
+mse_fold <- function(y_true, y_pred){
+  mean((y_true - y_pred)^2)
 }
-regresseur <- function(test_set) {
-  library(MASS)
-  predict(reg, test_set)
+
+k <- 10
+folds <- sample(rep(1:k, length.out = nrow(reg_data)))
+
+# toutes les variables (noms des colonnes de X_scaled)
+vars <- colnames(X_scaled)
+
+# Grille de tests GAM
+gam_configs <- expand.grid(k = c(5, 10, 15),
+                           bs = c("tp", "cr"),
+                           stringsAsFactors = FALSE)
+
+gam_res <- numeric(nrow(gam_configs))
+
+for(cfg in seq_len(nrow(gam_configs))){
+  k_s <- gam_configs$k[cfg]
+  bs_s <- gam_configs$bs[cfg]
+  
+  fold_mses <- numeric(k)
+  
+  for(i in 1:k){
+    test_idx <- which(folds == i)
+    train_idx <- setdiff(seq_len(nrow(X_scaled)), test_idx)
+    
+    train_df <- data.frame(y = y[train_idx], X_scaled[train_idx, , drop = FALSE])
+    test_df  <- data.frame(X_scaled[test_idx, , drop = FALSE])
+    
+    # Construire la formule avec toutes les variables
+    form_str <- paste0(
+      "y ~ ",
+      paste0("s(", vars, ", bs='", bs_s, "', k=", k_s, ")", collapse = " + ")
+    )
+    
+    mod_gam <- bam(as.formula(form_str),
+                   data = train_df,
+                   family = gaussian())
+    
+    pred <- predict.bam(mod_gam, newdata = test_df)
+    
+    fold_mses[i] <- mse_fold(y[test_idx], pred)
+  }
+  
+  gam_res[cfg] <- mean(fold_mses)
+  
+  cat("GAM bs=", bs_s,
+      "k=", k_s,
+      "MSE=", mean(fold_mses),
+      " sd=", sd(fold_mses), "\n")
 }
-# 3. Sauvegarder sous forme de fichier .Rdata les fonctions
-# `classifieur` et `regresseur` sans changer leur nom et avec
-# les mêmes arguments. Sauvegarder également les objets utilisés dans
-# ces fonctions (`clas` et `reg` dans l'exemple) !
-save("clas", "reg", "classifieur", "regresseur", file = "env.Rdata")
+
+
+
+```
+
+```{r}
+library(mgcv)
+library(glmnet)
+
+# Préparation des données
+X <- as.matrix(reg_data[, setdiff(names(reg_data), "y")])
+y <- reg_data$y
+X_scaled <- scale(X)
+
+mse_fold <- function(y_true, y_pred){
+  mean((y_true - y_pred)^2)
+}
+
+set.seed(420)
+k <- 10
+folds <- sample(rep(1:k, length.out = nrow(reg_data)))
+
+#LASSO pour la sélection
+cv_lasso <- cv.glmnet(X_scaled, y, alpha = 1, nfolds = 10)
+best_lambda <- cv_lasso$lambda.min
+
+# Coefficients
+lasso_coef <- coef(cv_lasso, s = best_lambda)
+selected_vars <- rownames(lasso_coef)[lasso_coef[,1] != 0]
+selected_vars <- selected_vars[selected_vars != "(Intercept)"]
+cat("Variables sélectionnées par LASSO :\n")
+print(selected_vars)
+
+# 3. Construire un GAM/BAM sur les variables sélectionnées
+df_gam <- data.frame(y = y, X_scaled[, selected_vars, drop = FALSE])
+
+form_str <- paste0("y ~ ", paste0("s(", selected_vars, ", bs='ps', k=5)", collapse = " + "))
+bam_model <- bam(as.formula(form_str), data = df_gam, family = gaussian())
+
+fold_mses <- numeric(k)
+
+for(i in 1:k){
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:nrow(df_gam), test_idx)
+  
+  train_df <- df_gam[train_idx, ]
+  test_df <- df_gam[test_idx, ]
+  
+  mod <- bam(as.formula(form_str), data = train_df, family = gaussian())
+  pred <- predict(mod, newdata = test_df)
+  fold_mses[i] <- mse_fold(test_df$y, pred)
+}
+
+cat("MSE moyen CV :", mean(fold_mses), "\n")
+
+```
+
+```{r}
+library(mgcv)
+library(glmnet)
+
+# Préparation des données
+X <- as.matrix(reg_data[, setdiff(names(reg_data), "y")])
+y <- reg_data$y
+X_scaled <- scale(X)
+
+mse_fold <- function(y_true, y_pred){
+  mean((y_true - y_pred)^2)
+}
+
+k <- 10
+folds <- sample(rep(1:k, length.out = nrow(reg_data)))
+
+# Grille fine de lambda
+lambda_grid <- 10^seq(-2, 2, length.out = 200)
+
+# Explorer alpha proche de LASSO
+alpha_grid <- seq(0.8, 1, by = 0.02)
+
+best_mse <- Inf
+best_alpha <- NA
+best_lambda <- NA
+best_model <- NULL
+
+for(a in alpha_grid){
+  en_mod <- cv.glmnet(X_scaled, y, alpha = a, nfolds = 10, lambda = lambda_grid)
+  mse <- min(en_mod$cvm)
+  if(mse < best_mse){
+    best_mse <- mse
+    best_alpha <- a
+    best_lambda <- en_mod$lambda.min
+    best_model <- en_mod
+  }
+}
+
+cat("Meilleur alpha :", best_alpha, "\n")
+cat("Lambda correspondant :", best_lambda, "\n")
+cat("MSE CV (d'après cv.glmnet) :", best_mse, "\n\n")
+
+# Variables sélectionnées
+coef_selected <- coef(best_model, s = "lambda.min")
+selected_vars <- rownames(coef_selected)[coef_selected[,1] != 0]
+selected_vars <- selected_vars[selected_vars != "(Intercept)"]
+cat("Variables sélectionnées :", selected_vars, "\n\n")
+
+formula_bam <- paste(selected_vars,collapse=")+s(")
+final_formula <- paste0("y~s(",formula_bam,")")
+cat("Formule finale sélectionnée: ",final_formula)
+
+
+# 3. Construire un GAM/BAM sur les variables sélectionnées
+df_gam <- data.frame(y = y, X_scaled[, selected_vars, drop = FALSE])
+
+form_str <- paste0("y ~ ", paste0("s(", selected_vars, ", bs='ps', k=5)", collapse = " + "))
+bam_model <- bam(as.formula(form_str), data = df_gam, family = gaussian(), select=TRUE)
+
+fold_mses <- numeric(k)
+
+for(i in 1:k){
+  test_idx <- which(folds == i)
+  train_idx <- setdiff(1:nrow(df_gam), test_idx)
+  
+  train_df <- df_gam[train_idx, ]
+  test_df <- df_gam[test_idx, ]
+  
+  mod <- bam(as.formula(form_str), data = train_df, family = gaussian())
+  pred <- predict(mod, newdata = test_df)
+  fold_mses[i] <- mse_fold(test_df$y, pred)
+}
+
+cat("MSE moyen CV :", mean(fold_mses), "\n")
+
 ```
